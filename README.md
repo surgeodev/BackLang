@@ -5,9 +5,21 @@ A fast, embeddable scripting language with built-in SQLite, HTTP server, and a f
 [![Docs](https://img.shields.io/badge/docs-surgeodev.github.io/BackLang-blue)](https://surgeodev.github.io/BackLang)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+## Quick Install
+
+**Linux / macOS** (one line):
 ```bash
 curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.sh | bash
 ```
+
+**Windows** (CMD — curl built-in):
+```bat
+curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.bat | cmd
+```
+
+**Or download binaries directly:** [surgeodev.github.io/BackLang/#/Downloads](https://surgeodev.github.io/BackLang/#/Downloads)
+
+---
 
 ## Quick Example
 
@@ -45,22 +57,6 @@ Run: `bl server.bl` → `curl http://localhost:8080/api/items`
 ## Documentation
 
 Full documentation: **[surgeodev.github.io/BackLang](https://surgeodev.github.io/BackLang)**
-
-## Quick Install (Linux)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.sh | bash
-```
-
-### Manual Build
-
-```bash
-sudo apt install libsqlite3-dev pkg-config build-essential
-git clone https://github.com/surgeodev/BackLang
-cd BackLang
-cargo build --release
-sudo cp target/release/bl /usr/local/bin/bl
-```
 
 ## Usage
 
