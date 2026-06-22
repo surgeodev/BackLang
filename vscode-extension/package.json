@@ -3,11 +3,11 @@
   "displayName": "BackLang Debug",
   "description": "Debug support and language features for BackLang (.bl files)",
   "version": "1.0.0",
-  "publisher": "backlang",
+  "publisher": "surgeodev",
   "icon": "media/icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/backlang/vscode-extension"
+    "url": "https://github.com/surgeodev/BackLang"
   },
   "engines": {
     "vscode": "^1.70.0"
@@ -222,6 +222,7 @@
     "@types/vscode": "^1.70.0",
     "@vscode/debugadapter": "^1.58.0",
     "@vscode/debugprotocol": "^1.58.0",
+    "@vscode/vsce": "^3.9.2",
     "typescript": "^4.7.0"
   }
 }

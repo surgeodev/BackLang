@@ -61,6 +61,27 @@ sha256sum backlang-*
 
 Available on the [GitHub Release](https://github.com/surgeodev/BackLang/releases/latest) page.
 
+## VS Code Extension (.vsix)
+
+Install the BackLang extension in VS Code without the marketplace:
+
+| File | Link | Size |
+|------|------|------|
+| Extension (.vsix) | [backlang-debug-1.0.0.vsix](https://github.com/surgeodev/BackLang/releases/latest/download/backlang-debug-1.0.0.vsix) | ~42 KB |
+
+**Installation :**
+1. Download the `.vsix` file
+2. In VS Code, press `Ctrl+Shift+X` to open Extensions
+3. Click `...` (top-right) → **Install from VSIX...**
+4. Select the downloaded file
+
+Or via terminal:
+```bash
+code --install-extension backlang-debug-1.0.0.vsix
+```
+
+The extension is also installed automatically by the [one-line installer](Installation).
+
 ## Manual Build
 
 If your platform is not listed above, see the [Installation](Installation) page for build instructions.
