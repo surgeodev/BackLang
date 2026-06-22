@@ -14,27 +14,29 @@ This will:
 5. Copy `bl` to `/usr/local/bin`
 6. Install the VS Code extension (if VS Code is installed)
 
-## Windows (One-Line PowerShell)
+## Windows (One-Line)
+
+### CMD (built-in curl)
+
+```bat
+curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.bat | cmd
+```
+
+### PowerShell
 
 Run as Administrator:
 
 ```powershell
 Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-iwr -Uri https://raw.githubusercontent.com/surgeodev/BackLang/main/install.ps1 -OutFile "$env:TEMP\install.ps1"
+curl -fsSLo "$env:TEMP\install.ps1" https://raw.githubusercontent.com/surgeodev/BackLang/main/install.ps1
 & "$env:TEMP\install.ps1"
 ```
 
-Or run directly:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "iwr -Uri https://raw.githubusercontent.com/surgeodev/BackLang/main/install.ps1 -OutFile $env:TEMP\install.ps1; & $env:TEMP\install.ps1"
-```
-
-This will:
+Both methods will:
 1. Install Rust via rustup (if not present)
 2. Clone the BackLang repository
 3. Build the release binary
-4. Copy `bl.exe` to `~/.cargo/bin`
+4. Copy `bl.exe` to `%USERPROFILE%\bin` (or `.cargo\bin` if Rust was pre-installed)
 5. Add it to your PATH
 6. Install the VS Code extension (if VS Code is installed)
 

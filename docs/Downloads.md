@@ -51,6 +51,13 @@ sudo mv backlang-aarch64-apple-darwin /usr/local/bin/bl
 
 > **Note:** GitHub's browser download wraps files in a `.zip`. Use the direct links above or `curl` in a terminal to get the raw binary.
 
+### One-Click Install (Windows)
+
+Run in CMD:
+```bat
+curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.bat | cmd
+```
+
 ### VS Code Extension
 
 [backlang-debug-1.0.0.vsix](https://github.com/surgeodev/BackLang/releases/latest/download/backlang-debug-1.0.0.vsix)

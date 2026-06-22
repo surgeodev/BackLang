@@ -5,15 +5,11 @@ Write-Host "=== BackLang Installer ===" -ForegroundColor Cyan
 # Check for Rust
 if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
     Write-Host "-> Installing Rust..." -ForegroundColor Yellow
-    $rustup = "$env:TEMP\rustup-init.exe"
-    Invoke-WebRequest -Uri "https://win.rustup.rs/x86_64" -OutFile $rustup
-    Start-Process -Wait -FilePath $rustup -ArgumentList "-y"
-    $env:Path = [Environment]::GetEnvironmentVariable("Path", "User") + ";$env:USERPROFILE\.cargo\bin"
-    Remove-Item $rustup
-}
-
-# Ensure cargo is in PATH
-if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
+    $url = "https://win.rustup.rs/x86_64"
+    $out = "$env:TEMP\rustup-init.exe"
+    curl -fsSLo $out $url
+    Start-Process -Wait -FilePath $out -ArgumentList "-y"
+    Remove-Item $out
     $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
 }
 
@@ -34,11 +30,13 @@ cargo build --release
 
 Write-Host "-> Installing binary..." -ForegroundColor Yellow
 $binDir = "$env:USERPROFILE\bin"
-if (Test-Path "$env:USERPROFILE\.cargo\bin") { $binDir = "$env:USERPROFILE\.cargo\bin" }
+if (Test-Path "$env:USERPROFILE\.cargo\bin") {
+    $binDir = "$env:USERPROFILE\.cargo\bin"
+}
 New-Item -ItemType Directory -Force -Path $binDir | Out-Null
 Copy-Item "target\release\bl.exe" "$binDir\bl.exe" -Force
 
-# Add to PATH if not already
+# Add to PATH
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$binDir*") {
     [Environment]::SetEnvironmentVariable("Path", "$userPath;$binDir", "User")
