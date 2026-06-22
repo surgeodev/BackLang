@@ -1,0 +1,65 @@
+// BackLang Debug Extension - Example Program
+// This is an example BackLang program to test the VS Code extension
+
+let title = "BackLang Extension Demo"
+let version = 1.0
+
+print("=== " + title + " ===")
+print("Version: " + version)
+print("")
+
+// Variables
+let x = 10
+let y = 20
+let message = "Hello from BackLang!"
+
+print("Variables:")
+print("x = " + x)
+print("y = " + y)
+print("message = " + message)
+print("")
+
+// Functions
+function add(a: num, b: num) {
+    return a + b
+}
+
+function multiply(a: num, b: num) {
+    return a * b
+}
+
+print("Functions:")
+print("add(5, 3) = " + add(5, 3))
+print("multiply(4, 7) = " + multiply(4, 7))
+print("")
+
+// Arrays
+let numbers = [1, 2, 3, 4, 5]
+print("Arrays:")
+print("numbers = " + numbers)
+
+push(numbers, 6)
+print("After push(6): " + numbers)
+print("")
+
+// Objects
+let person = {name: "BackLang", age: 1}
+print("Objects:")
+print("person = " + person)
+print("person.name = " + person.name)
+print("")
+
+// Control Flow
+print("Control Flow:")
+if x > 5 {
+    print("x is greater than 5")
+}
+
+let i = 0
+while i < 3 {
+    print("while loop: i = " + i)
+    i = i + 1
+}
+
+print("")
+print("=== Demo Complete ===")

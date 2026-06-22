@@ -1,0 +1,227 @@
+{
+  "name": "backlang-debug",
+  "displayName": "BackLang Debug",
+  "description": "Debug support and language features for BackLang (.bl files)",
+  "version": "1.0.0",
+  "publisher": "backlang",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/backlang/vscode-extension"
+  },
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Debuggers",
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:backlang",
+    "onCommand:backlang.run",
+    "onCommand:backlang.debug",
+    "onCommand:backlang.createHtml5Base",
+    "onCommand:backlang.createBackendBase",
+    "onCommand:backlang.build",
+    "onCommand:backlang.repl"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "backlang",
+        "aliases": [
+          "BackLang",
+          "backlang"
+        ],
+        "extensions": [
+          ".bl",
+          ".lb"
+        ],
+        "icon": {
+          "light": "media/icon.png",
+          "dark": "media/icon.png"
+        },
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "backlang",
+        "scopeName": "source.backlang",
+        "path": "./syntaxes/backlang.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "backlang",
+        "path": "./snippets.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "backlang.debug",
+        "title": "Debug BackLang File",
+        "category": "BackLang",
+        "icon": "$(debug-alt-small)"
+      },
+      {
+        "command": "backlang.createHtml5Base",
+        "title": "!bl - Create HTML5 Base",
+        "category": "BackLang"
+      },
+      {
+        "command": "backlang.createBackendBase",
+        "title": "!lb - Create Backend Base",
+        "category": "BackLang"
+      },
+      {
+        "command": "backlang.run",
+        "title": "Run BackLang File",
+        "category": "BackLang",
+        "icon": "$(play-circle)"
+      },
+      {
+        "command": "backlang.build",
+        "title": "Build BackLang (cargo build --release)",
+        "category": "BackLang",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "backlang.repl",
+        "title": "Open BackLang REPL",
+        "category": "BackLang",
+        "icon": "$(terminal)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "backlang.run",
+          "group": "navigation",
+          "when": "resourceLangId == 'backlang'"
+        },
+        {
+          "command": "backlang.debug",
+          "group": "navigation",
+          "when": "resourceLangId == 'backlang'"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "backlang.run",
+          "when": "resourceLangId == 'backlang'"
+        },
+        {
+          "command": "backlang.debug",
+          "when": "resourceLangId == 'backlang'"
+        }
+      ]
+    },
+    "breakpoints": [
+      {
+        "language": "backlang"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "backlang",
+        "label": "BackLang Debugger",
+        "program": "./out/debugAdapter.js",
+        "runtime": "node",
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Path to the BackLang file to debug"
+              },
+              "stopOnEntry": {
+                "type": "boolean",
+                "description": "Stop on entry",
+                "default": true
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "name": "▶️ Run BackLang File",
+            "type": "backlang",
+            "request": "launch",
+            "program": "${file}",
+            "stopOnEntry": false,
+            "blPath": "${workspaceFolder}/../target/debug/bl"
+          },
+          {
+            "name": "🐛 Debug BackLang File",
+            "type": "backlang",
+            "request": "launch",
+            "program": "${file}",
+            "stopOnEntry": true,
+            "blPath": "${workspaceFolder}/../target/debug/bl"
+          },
+          {
+            "name": "🚀 Debug BackLang (Release)",
+            "type": "backlang",
+            "request": "launch",
+            "program": "${file}",
+            "stopOnEntry": false,
+            "blPath": "${workspaceFolder}/../target/release/bl"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "BackLang: Debug",
+            "description": "Debug a BackLang file",
+            "body": {
+              "name": "BackLang Debug",
+              "type": "backlang",
+              "request": "launch",
+              "program": "^\"\\${workspaceFolder}/\\${relativeFile}\"",
+              "stopOnEntry": true
+            }
+          }
+        ]
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "backlang.debug",
+        "key": "ctrl+shift+d",
+        "when": "editorLangId == backlang"
+      },
+      {
+        "command": "backlang.run",
+        "key": "ctrl+shift+r",
+        "when": "editorLangId == backlang"
+      },
+      {
+        "command": "backlang.run",
+        "key": "ctrl+f5",
+        "when": "editorLangId == backlang",
+        "mac": {
+          "key": "cmd+f5"
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "^16.0.0",
+    "@types/vscode": "^1.70.0",
+    "@vscode/debugadapter": "^1.58.0",
+    "@vscode/debugprotocol": "^1.58.0",
+    "typescript": "^4.7.0"
+  }
+}

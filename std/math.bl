@@ -1,0 +1,59 @@
+// std/math.bl - Module mathématique
+// Usage: import "std/math"
+
+function sqrt(n) {
+    // Racine carrée
+    return null
+}
+
+function abs(n) {
+    // Valeur absolue
+    return null
+}
+
+function floor(n) {
+    // Arrondi à l'entier inférieur
+    return null
+}
+
+function ceil(n) {
+    // Arrondi à l'entier supérieur
+    return null
+}
+
+function round(n) {
+    // Arrondi à l'entier le plus proche
+    return std.math.floor(n + 0.5)
+}
+
+function min(a, b) {
+    // Minimum entre deux valeurs
+    if a < b { return a }
+    return b
+}
+
+function max(a, b) {
+    // Maximum entre deux valeurs
+    if a > b { return a }
+    return b
+}
+
+function pow(base, exp) {
+    // Puissance (base ^ exp)
+    let result = 1
+    for i in range(exp) {
+        result = result * base
+    }
+    return result
+}
+
+function range(n) {
+    // Crée un tableau [0, 1, ..., n-1]
+    let arr = []
+    let i = 0
+    while i < n {
+        push(arr, i)
+        i = i + 1
+    }
+    return arr
+}

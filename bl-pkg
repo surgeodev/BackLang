@@ -1,0 +1,156 @@
+#!/usr/bin/env python3
+"""
+bl-pkg - BackLang Package Manager (comme pip pour Python)
+Usage:
+    bl-pkg install <package>
+    bl-pkg uninstall <package>
+    bl-pkg list
+    bl-pkg search <query>
+    bl-pkg init
+"""
+
+import os
+import sys
+import json
+import subprocess
+import shutil
+from pathlib import Path
+
+# Configuration
+BACKLANG_HOME = Path.home() / ".backlang"
+PACKAGES_DIR = BACKLANG_HOME / "packages"
+REGISTRY_FILE = BACKLANG_HOME / "registry.json"
+BACKLANG_STD_DIR = Path(__file__).parent / "std"
+
+def ensure_dirs():
+    BACKLANG_HOME.mkdir(exist_ok=True)
+    PACKAGES_DIR.mkdir(exist_ok=True)
+    if not REGISTRY_FILE.exists():
+        REGISTRY_FILE.write_text(json.dumps({"packages": {}}, indent=2))
+
+def load_registry():
+    ensure_dirs()
+    return json.loads(REGISTRY_FILE.read_text())
+
+def save_registry(registry):
+    REGISTRY_FILE.write_text(json.dumps(registry, indent=2))
+
+def install_package(package_name):
+    """Installer un package BackLang"""
+    registry = load_registry()
+    
+    # Chercher dans le registre local ou télécharger
+    print(f"🔍 Recherche du package '{package_name}'...")
+    
+    # Si c'est un package local (fichier .bl)
+    local_path = Path(package_name)
+    if local_path.exists() and local_path.suffix == ".bl":
+        pkg_dir = PACKAGES_DIR / local_path.stem
+        pkg_dir.mkdir(exist_ok=True)
+        shutil.copy(local_path, pkg_dir / "index.bl")
+        
+        registry["packages"][local_path.stem] = {
+            "version": "1.0.0",
+            "path": str(pkg_dir / "index.bl"),
+            "source": "local"
+        }
+        save_registry(registry)
+        print(f"✅ Package '{local_path.stem}' installé avec succès!")
+        print(f"   Utilisation: import \"{local_path.stem}\"")
+        return
+    
+    # TODO: Télécharger depuis un registre en ligne (ex: https://pkg.backlang.dev)
+    print(f"❌ Package '{package_name}' non trouvé (registre en ligne pas encore disponible)")
+    print("   Vous pouvez installer un fichier local: bl-pkg install ./monpackage.bl")
+
+def uninstall_package(package_name):
+    """Désinstaller un package"""
+    registry = load_registry()
+    if package_name not in registry["packages"]:
+        print(f"❌ Package '{package_name}' non installé")
+        return
+    
+    pkg_info = registry["packages"][package_name]
+    pkg_path = Path(pkg_info["path"]).parent
+    if pkg_path.exists():
+        shutil.rmtree(pkg_path)
+    
+    del registry["packages"][package_name]
+    save_registry(registry)
+    print(f"✅ Package '{package_name}' désinstallé")
+
+def list_packages():
+    """Lister les packages installés"""
+    registry = load_registry()
+    if not registry["packages"]:
+        print("Aucun package installé")
+        return
+    
+    print("📦 Packages installés:")
+    for name, info in registry["packages"].items():
+        print(f"   {name} v{info['version']} ({info['source']})")
+
+def search_packages(query):
+    """Rechercher des packages"""
+    print(f"🔍 Recherche de '{query}'...")
+    print("⚠️  Le registre en ligne n'est pas encore disponible")
+    print("   Installez des fichiers .bl locaux avec: bl-pkg install ./package.bl")
+
+def init_project():
+    """Initialiser un nouveau projet BackLang"""
+    cwd = Path.cwd()
+    project_name = cwd.name
+    
+    # Créer backlang.json
+    config = {
+        "name": project_name,
+        "version": "1.0.0",
+        "description": "",
+        "main": "main.bl",
+        "dependencies": {}
+    }
+    
+    config_file = cwd / "backlang.json"
+    if config_file.exists():
+        print("⚠️  backlang.json existe déjà")
+        return
+    
+    config_file.write_text(json.dumps(config, indent=2))
+    
+    # Créer main.bl si n'existe pas
+    main_file = cwd / "main.bl"
+    if not main_file.exists():
+        main_file.write_text('print("Hello from BackLang!")\n')
+    
+    # Créer std/ directory si n'existe pas
+    std_dir = cwd / "std"
+    if not std_dir.exists():
+        std_dir.mkdir()
+        std_dir_init = std_dir / "__init__.bl"
+        std_dir_init.write_text("// Standard library directory\n")
+    
+    print(f"✅ Projet '{project_name}' initialisé!")
+    print(f"   Fichiers créés: backlang.json, main.bl, std/")
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+    
+    command = sys.argv[1]
+    
+    if command == "install" and len(sys.argv) >= 3:
+        install_package(sys.argv[2])
+    elif command == "uninstall" and len(sys.argv) >= 3:
+        uninstall_package(sys.argv[2])
+    elif command == "list":
+        list_packages()
+    elif command == "search" and len(sys.argv) >= 3:
+        search_packages(sys.argv[2])
+    elif command == "init":
+        init_project()
+    else:
+        print(__doc__)
+
+if __name__ == "__main__":
+    main()

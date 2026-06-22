@@ -1,0 +1,4 @@
+**/*.ts
+**/*.map
+.gitignore
+vsc-extension-quickstart.md

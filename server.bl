@@ -1,0 +1,15 @@
+server app {
+    port: 8080
+}
+
+endpoint GET "/hello" {
+    return "Hello from BackLang!"
+}
+
+endpoint GET "/json" {
+    return {message: "Hello", version: 1.0, ok: true}
+}
+
+endpoint POST "/echo" {
+    return {received: "data"}
+}

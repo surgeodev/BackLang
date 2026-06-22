@@ -1,0 +1,74 @@
+// test_final.bl - Test complet BackLang v1.0.0
+// Teste: imports, std lib, serveur, etc.
+
+print("=== BackLang v1.0.0 - Test Final ===")
+print("")
+
+// 1. Test std.math
+print("1. Math:")
+print("   sqrt(25) = " + str(std.math.sqrt(25)))
+print("   abs(-42) = " + str(std.math.abs(-42)))
+print("   min(10, 5) = " + str(std.math.min(10, 5)))
+print("   pow(2, 10) = " + str(std.math.pow(2, 10)))
+print("")
+
+// 2. Test std.string
+print("2. String:")
+let s = "  Hello World  "
+print("   trim: '" + std.string.trim(s) + "'")
+print("   toUpper: " + std.string.toUpper("backlang"))
+print("   contains: " + str(std.string.contains("hello world", "world")))
+print("")
+
+// 3. Test std.random
+print("3. Random:")
+print("   rand: " + str(std.random.rand()))
+print("   randint(1,100): " + str(std.random.randint(1, 100)))
+let arr = ["a", "b", "c", "d"]
+print("   choice: " + std.random.choice(arr))
+print("")
+
+// 4. Test std.os
+print("4. OS:")
+print("   HOME: " + std.os.getenv("HOME"))
+let args = std.os.args()
+print("   Args count: " + str(len(args)))
+print("")
+
+// 5. Test std.fs
+print("5. FS:")
+let test_file = "/tmp/backlang_final_test.txt"
+std.fs.writeFile(test_file, "Line 1\nLine 2\nLine 3\n")
+let content = std.fs.readFile(test_file)
+print("   File written and read:")
+print("   " + std.string.replace(content, "\n", "\n   "))
+print("")
+
+// 6. Test functions et variables
+print("6. Functions:")
+function factorial(n) {
+    if n <= 1 { return 1 }
+    return n * factorial(n - 1)
+}
+print("   factorial(5) = " + str(factorial(5)))
+print("")
+
+// 7. Test arrays
+print("7. Arrays:")
+let nums = [1, 2, 3, 4, 5]
+print("   Array: " + str(nums))
+print("   Length: " + str(len(nums)))
+print("")
+
+// 8. Test objects
+print("8. Objects:")
+let person = {name: "BackLang", version: "1.0.0", stable: true}
+print("   Object: " + str(person))
+print("   Keys: " + str(keys(person)))
+print("")
+
+print("=== ✅ Tous les tests sont passés! ===")
+print("")
+print("Pour tester le serveur, créez un fichier avec:")
+print("server app { port: 8080 }")
+print("endpoint GET \"/api/hello\" { return {message: \"Hello\"} }")

@@ -1,0 +1,99 @@
+{
+  "Server block": {
+    "prefix": "server",
+    "body": [
+      "server ${1:name} {",
+      "\tport: ${2:8080}",
+      "\tcors: ${3:true}",
+      "}"
+    ],
+    "description": "Create a server block"
+  },
+  "Endpoint": {
+    "prefix": "endpoint",
+    "body": [
+      "endpoint ${1|GET,POST,PUT,DELETE|} \"${2:/api/route}\" {",
+      "\treturn {status: 200, body: {$3}}",
+      "}"
+    ],
+    "description": "Create an API endpoint"
+  },
+  "Import std.db": {
+    "prefix": "importdb",
+    "body": [
+      "import \"std.db\"",
+      "",
+      "db.open(${1:dbPath})",
+      "db.execute(${1:dbPath}, \"${2:SQL}\")"
+    ],
+    "description": "Import and use std.db"
+  },
+  "db.open": {
+    "prefix": "db.open",
+    "body": ["db.open(${1:dbPath})"],
+    "description": "Open a SQLite database"
+  },
+  "db.execute": {
+    "prefix": "db.execute",
+    "body": ["db.execute(${1:dbPath}, \"${2:SQL}\")"],
+    "description": "Execute SQL on a database"
+  },
+  "db.query": {
+    "prefix": "db.query",
+    "body": ["let ${1:rows} = db.query(${2:dbPath}, \"${3:SQL}\")"],
+    "description": "Query a database"
+  },
+  "Function": {
+    "prefix": "function",
+    "body": [
+      "function ${1:name}(${2:params}) -> ${3|void,String,Num,Bool|} {",
+      "\t${4}",
+      "}"
+    ],
+    "description": "Create a function"
+  },
+  "If statement": {
+    "prefix": "if",
+    "body": [
+      "if ${1:condition} {",
+      "\t${2}",
+      "} else {",
+      "\t${3}",
+      "}"
+    ],
+    "description": "If-else block"
+  },
+  "For loop": {
+    "prefix": "for",
+    "body": [
+      "for ${1:item} in ${2:array} {",
+      "\t${3}",
+      "}"
+    ],
+    "description": "For-each loop"
+  },
+  "Return JSON": {
+    "prefix": "return",
+    "body": ["return {status: ${1:200}, body: {${2}}}"],
+    "description": "Return HTTP response"
+  },
+  "let variable": {
+    "prefix": "let",
+    "body": ["let ${1:name} = ${2:value}"],
+    "description": "Declare a mutable variable"
+  },
+  "Middleware": {
+    "prefix": "middleware",
+    "body": [
+      "middleware ${1:name} {",
+      "\tprint(req.method + \" \" + req.path)",
+      "}"
+    ],
+    "description": "Create middleware"
+  },
+  "HTTP status response": {
+    "prefix": "error",
+    "body": ["return {status: ${1:404}, body: {error: \"${2:message}\"}}"],
+    "description": "Return error HTTP response"
+  }
+}

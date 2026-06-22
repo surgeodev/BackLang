@@ -1,0 +1,21 @@
+// std/random.bl - Module de génération aléatoire
+// Usage: import "std/random"
+
+function rand() {
+    // Retourne un nombre aléatoire entre 0 et 1
+    return null
+}
+
+function randint(min, max) {
+    // Retourne un entier aléatoire entre min et max (inclus)
+    return null
+}
+
+function choice(arr) {
+    // Retourne un élément aléatoire d'un tableau
+    if type(arr) != "array" { return null }
+    let len = len(arr)
+    if len == 0 { return null }
+    let idx = std.random.randint(0, len - 1)
+    return arr[idx]
+}

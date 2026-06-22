@@ -1,0 +1,22 @@
+// std/os.bl - Module système d'exploitation
+// Usage: import "std/os" ou utilisation directe std.os.getenv("HOME")
+
+function getenv(var) {
+    // Retourne la variable d'environnement (implémenté dans l'interpréteur)
+    return null
+}
+
+function exit(code) {
+    // Quitte le programme avec le code spécifié
+    return null
+}
+
+function args() {
+    // Retourne les arguments de la ligne de commande
+    return null
+}
+
+function cwd() {
+    // Retourne le répertoire de travail courant
+    return null
+}

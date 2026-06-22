@@ -1,0 +1,76 @@
+// std/string.bl - Module de manipulation de chaînes
+// Usage: import "std/string"
+
+function split(s, sep) {
+    // Divise une chaîne par un séparateur
+    return null
+}
+
+function trim(s) {
+    // Supprime les espaces au début et à la fin
+    return null
+}
+
+function toUpper(s) {
+    // Convertit en majuscules
+    return null
+}
+
+function toLower(s) {
+    // Convertit en minuscules
+    return null
+}
+
+function replace(s, old, new) {
+    // Remplace toutes les occurrences de old par new
+    let result = ""
+    let i = 0
+    let old_len = len(old)
+    while i < len(s) {
+        if s[i:i+old_len] == old {
+            result = result + new
+            i = i + old_len
+        } else {
+            result = result + s[i]
+            i = i + 1
+        }
+    }
+    return result
+}
+
+function startsWith(s, prefix) {
+    // Vérifie si s commence par prefix
+    if len(s) < len(prefix) { return false }
+    return s[0:len(prefix)] == prefix
+}
+
+function endsWith(s, suffix) {
+    // Vérifie si s finit par suffix
+    if len(s) < len(suffix) { return false }
+    return s[len(s)-len(suffix):] == suffix
+}
+
+function contains(s, substr) {
+    // Vérifie si s contient substr
+    let i = 0
+    let sub_len = len(substr)
+    while i <= len(s) - sub_len {
+        if s[i:i+sub_len] == substr {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+// Fonction helper pour les slices (non supporté nativement, à implémenter)
+// Cette fonction est un placeholder
+function slice(s, start, end) {
+    let result = ""
+    let i = start
+    while i < end && i < len(s) {
+        result = result + s[i]
+        i = i + 1
+    }
+    return result
+}

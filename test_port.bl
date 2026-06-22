@@ -1,0 +1,3 @@
+server s {
+    port: 8080
+}

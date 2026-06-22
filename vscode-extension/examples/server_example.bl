@@ -1,0 +1,31 @@
+// Simple HTTP Server Example
+// Demonstrates BackLang server capabilities
+
+function handleRequest(method: string, path: string) {
+    print("Request: " + method + " " + path)
+    
+    if method == "GET" {
+        if path == "/" {
+            return {status: 200, body: "Welcome to BackLang Server"}
+        } else if path == "/api/data" {
+            return {status: 200, body: "data"}
+        }
+    }
+    
+    return {status: 404, body: "Not Found"}
+}
+
+let requests = [
+    {method: "GET", path: "/"},
+    {method: "GET", path: "/api/data"},
+    {method: "POST", path: "/api/submit"}
+]
+
+print("Simulating Server Requests:")
+let i = 0
+while i < len(requests) {
+    let req = requests[i]
+    let response = handleRequest(req.method, req.path)
+    print("Response: " + response)
+    i = i + 1
+}

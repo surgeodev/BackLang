@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Current BackLang File",
+      "type": "backlang",
+      "request": "launch",
+      "program": "${file}",
+      "stopOnEntry": true
+    },
+    {
+      "name": "Debug with Arguments",
+      "type": "backlang",
+      "request": "launch",
+      "program": "${workspaceFolder}/examples/demo.bl",
+      "stopOnEntry": false
+    }
+  ],
+  "compounds": []
+}
