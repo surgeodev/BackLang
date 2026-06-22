@@ -154,7 +154,7 @@
             "request": "launch",
             "program": "${file}",
             "stopOnEntry": false,
-            "blPath": "${workspaceFolder}/../target/debug/bl"
+            "blPath": "bl"
           },
           {
             "name": "🐛 Debug BackLang File",
@@ -162,7 +162,7 @@
             "request": "launch",
             "program": "${file}",
             "stopOnEntry": true,
-            "blPath": "${workspaceFolder}/../target/debug/bl"
+            "blPath": "bl"
           },
           {
             "name": "🚀 Debug BackLang (Release)",
@@ -170,7 +170,7 @@
             "request": "launch",
             "program": "${file}",
             "stopOnEntry": false,
-            "blPath": "${workspaceFolder}/../target/release/bl"
+            "blPath": "bl"
           }
         ],
         "configurationSnippets": [
