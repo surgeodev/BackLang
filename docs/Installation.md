@@ -89,7 +89,9 @@ sudo cp target/release/bl /usr/local/bin/bl
 
 **Windows:**
 ```powershell
-copy target\release\bl.exe %USERPROFILE%\.cargo\bin\
+mkdir %USERPROFILE%\bin -Force
+copy target\release\bl.exe %USERPROFILE%\bin\
+setx PATH "%PATH%;%USERPROFILE%\bin"
 ```
 
 ### Verify

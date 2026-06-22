@@ -44,8 +44,10 @@ sudo mv backlang-aarch64-apple-darwin /usr/local/bin/bl
 [backlang-x86_64-pc-windows-msvc.exe](https://github.com/surgeodev/BackLang/releases/latest/download/backlang-x86_64-pc-windows-msvc.exe)
 
 1. Right-click the link → **Save Link As** → save as `bl.exe`
-2. Move `bl.exe` to a folder in your PATH (e.g. `C:\Users\YourName\.cargo\bin\`)
-3. Open a new terminal and run `bl --help`
+2. Create a folder for your binaries: `mkdir %USERPROFILE%\bin`
+3. Move `bl.exe` to `%USERPROFILE%\bin\`
+4. Add it to PATH: `setx PATH "%PATH%;%USERPROFILE%\bin"`
+5. Open a **new** terminal and run `bl --help`
 
 > **Note:** GitHub's browser download wraps files in a `.zip`. Use the direct links above or `curl` in a terminal to get the raw binary.
 

@@ -33,13 +33,16 @@ Write-Host "-> Building BackLang..." -ForegroundColor Yellow
 cargo build --release
 
 Write-Host "-> Installing binary..." -ForegroundColor Yellow
-$binDir = "$env:USERPROFILE\.cargo\bin"
-Copy-Item "target\release\bl.exe" $binDir -Force
+$binDir = "$env:USERPROFILE\bin"
+if (Test-Path "$env:USERPROFILE\.cargo\bin") { $binDir = "$env:USERPROFILE\.cargo\bin" }
+New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+Copy-Item "target\release\bl.exe" "$binDir\bl.exe" -Force
 
 # Add to PATH if not already
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$binDir*") {
     [Environment]::SetEnvironmentVariable("Path", "$userPath;$binDir", "User")
+    Write-Host "-> Added $binDir to PATH" -ForegroundColor Yellow
 }
 
 # VS Code extension
