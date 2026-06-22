@@ -2,6 +2,8 @@
 
 A fast, embeddable scripting language with SQLite support and HTTP server capabilities.
 
+📖 Documentation complète : https://surgeodev.github.io/BackLang
+
 ## Quick Install
 
 ```bash
