@@ -1,4 +1,4 @@
-# BackLang Installer for Windows
+﻿# BackLang Installer for Windows
 $ErrorActionPreference = "Stop"
 Write-Host "=== BackLang Installer ===" -ForegroundColor Cyan
 
@@ -53,7 +53,7 @@ if ((Get-Command code -ErrorAction SilentlyContinue) -and (Test-Path $vsix)) {
 }
 
 Write-Host ""
-Write-Host "✓ Done!" -ForegroundColor Green
+Write-Host "[OK] Done!" -ForegroundColor Green
 Write-Host "  bl --check file.bl"
 Write-Host "  bl file.bl"
 Write-Host "  bl --debug file.bl"
