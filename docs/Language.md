@@ -358,7 +358,7 @@ import "std.random"
 import "std.db"
 ```
 
-See the **[Standard Library](/#/Standard-Library)** for details.
+See the **[Standard Library](Standard-Library)** for details.
 
 ### Local File Imports
 

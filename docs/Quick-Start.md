@@ -90,7 +90,7 @@ print(users)
 
 ## What's Next?
 
-- Read the full **[Language Reference](/#/Language)**
-- Explore the **[Standard Library](/#/Standard-Library)**
-- Build an **[HTTP API with SQLite](/#/HTTP-Server?id=sqlite-integration)**
-- Set up the **[VS Code Debugger](/#/VS-Code?id=debugger)**
+- Read the full **[Language Reference](Language)**
+- Explore the **[Standard Library](Standard-Library)**
+- Build an **[HTTP API with SQLite](HTTP-Server?id=sqlite-integration)**
+- Set up the **[VS Code Debugger](VS-Code?id=debugger)**
