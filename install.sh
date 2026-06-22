@@ -4,7 +4,16 @@ set -euo pipefail
 echo "=== BackLang Installer ==="
 
 # System deps
-if command -v apt &>/dev/null; then
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    if ! command -v xcode-select &>/dev/null; then
+        echo "→ Installing Xcode CLI tools..."
+        xcode-select --install
+    fi
+    # macOS: libsqlite3 is already present, pkg-config via brew
+    if command -v brew &>/dev/null; then
+        brew install pkg-config
+    fi
+elif command -v apt &>/dev/null; then
     sudo apt update && sudo apt install -y libsqlite3-dev pkg-config build-essential curl
 elif command -v pacman &>/dev/null; then
     sudo pacman -S --needed sqlite pkg-config base-devel curl
