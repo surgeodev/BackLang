@@ -25,6 +25,11 @@ fn main() {
         return;
     }
     
+    if args[1] == "--install" {
+        cmd_install();
+        return;
+    }
+    
     let debug_mode = args[1] == "--debug";
     let check_only = args[1] == "--check";
     let file = if check_only || debug_mode { &args[2] } else { &args[1] };
@@ -54,6 +59,7 @@ fn print_usage() {
     println!("       bl --debug <file.bl>  (debug mode)");
     println!("       bl --version           (show version)");
     println!("       bl --update            (update to latest release)");
+    println!("       bl --install           (add to PATH on Windows)");
 }
 
 fn cmd_update() {
@@ -152,5 +158,43 @@ fn cmd_update() {
         fs::write(&bat, script).ok();
         Command::new("cmd").args(["/c", "start", "/b", bat.to_str().unwrap()]).spawn().ok();
         println!("Updated to {}! Restart your terminal.", latest_tag);
+    }
+}
+
+fn cmd_install() {
+    #[cfg(windows)]
+    {
+        let exe = match env::current_exe() {
+            Ok(p) => p,
+            Err(_) => { eprintln!("Cannot determine executable path"); return; }
+        };
+        let dir = exe.parent().unwrap().to_str().unwrap();
+        let ps = format!(
+            "$path = [Environment]::GetEnvironmentVariable('Path', 'User'); \
+             if ($path -notlike '*{}*') {{ \
+                 [Environment]::SetEnvironmentVariable('Path', \"$path;{}\", 'User'); \
+                 Write-Host 'Added {} to PATH' \
+             }} else {{ \
+                 Write-Host 'Already in PATH' \
+             }}",
+            dir.replace('\'', "''"),
+            dir.replace('\'', "''"),
+            dir
+        );
+        let status = Command::new("powershell")
+            .args(["-NoProfile", "-Command", &ps])
+            .status();
+        match status {
+            Ok(s) if s.success() => {
+                println!("bl is now in your PATH. Restart your terminal.");
+            }
+            _ => { eprintln!("Failed to add to PATH. Try running as Administrator."); }
+        }
+    }
+    
+    #[cfg(not(windows))]
+    {
+        println!("On Linux/macOS, bl is installed to /usr/local/bin which is already in PATH.");
+        println!("If not, run: export PATH=\"$PATH:$(dirname $(which bl))\"");
     }
 }

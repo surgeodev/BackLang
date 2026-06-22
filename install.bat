@@ -8,11 +8,12 @@ echo ^> Downloading bl.exe...
 curl -fsSLo "%BIN_DIR%\bl.exe" https://github.com/surgeodev/BackLang/releases/latest/download/backlang-x86_64-pc-windows-msvc.exe
 if %ERRORLEVEL% neq 0 (
     echo [ERROR] Download failed. Check your internet connection.
+    pause
     exit /b 1
 )
 
 echo ^> Adding to PATH...
-setx PATH "%PATH%;%BIN_DIR%" >nul
+"%BIN_DIR%\bl.exe" --install
 
 echo ^> Installing VS Code extension...
 curl -fsSLo "%TEMP%\backlang-debug-1.0.0.vsix" https://github.com/surgeodev/BackLang/releases/latest/download/backlang-debug-1.0.0.vsix
