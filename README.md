@@ -5,7 +5,7 @@ A fast, embeddable scripting language with SQLite support and HTTP server capabi
 ## Quick Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/surgeodev/backlang/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.sh | bash
 ```
 
 ## Usage

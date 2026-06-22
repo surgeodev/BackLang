@@ -26,7 +26,7 @@ if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/Cargo.toml" ]; then
 else
     SRC="$HOME/backlang"
     echo "→ Downloading BackLang from GitHub..."
-    git clone --depth 1 https://github.com/surgeodev/backlang "$SRC"
+    git clone --depth 1 https://github.com/surgeodev/BackLang "$SRC"
 fi
 
 cd "$SRC"
