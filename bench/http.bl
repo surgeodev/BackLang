@@ -1,0 +1,16 @@
+// HTTP throughput benchmark
+// Run: bl bench/http.bl
+
+server bench { port: 9998; cors: true }
+
+endpoint GET "/" {
+    return {status: 200, body: {ok: true}}
+}
+
+endpoint GET "/db" {
+    import "std.db"
+    db.open("/tmp/_bench.db")
+    db.execute("/tmp/_bench.db", "CREATE TABLE IF NOT EXISTS bench (id INTEGER PRIMARY KEY, data TEXT)")
+    let r = db.query("/tmp/_bench.db", "SELECT COUNT(*) as c FROM bench")
+    return {status: 200, body: {count: r[0].c}}
+}

@@ -1,5 +1,6 @@
 - **Getting Started**
   - [Overview](README)
+  - [Benchmarks](Benchmarks)
   - [Downloads](Downloads)
   - [Installation](Installation)
   - [Quick Start](Quick-Start)
