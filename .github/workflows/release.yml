@@ -61,9 +61,19 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           merge-multiple: true
+
+      - name: Build VSIX
+        run: |
+          cd vscode-extension
+          npm install
+          npx tsc -p ./
+          npx vsce package --no-git-tag-version
+          cp backlang-debug-1.0.0.vsix ../
 
       - name: Generate checksums
         run: sha256sum backlang-* > checksums.txt
