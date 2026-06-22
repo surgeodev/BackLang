@@ -53,10 +53,10 @@ BackLang/
 
 ## Quick Links
 
-- **[Installation](/#/Installation)**
-- **[Language Reference](/#/Language)**
-- **[Standard Library](/#/Standard-Library)**
-- **[HTTP Server Guide](/#/HTTP-Server)**
-- **[VS Code Extension](/#/VS-Code)**
-- **[Examples](/#/Examples)**
+- **[Installation](Installation)**
+- **[Language Reference](Language)**
+- **[Standard Library](Standard-Library)**
+- **[HTTP Server Guide](HTTP-Server)**
+- **[VS Code Extension](VS-Code)**
+- **[Examples](Examples)**
 - **[GitHub Repository](https://github.com/surgeodev/BackLang)**
