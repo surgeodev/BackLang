@@ -7,7 +7,7 @@ curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.sh 
 ```
 
 This will:
-1. Install system dependencies (Linux: libsqlite3-dev, pkg-config; macOS: Xcode CLI tools)
+1. Install system dependencies (Linux: build-essential; macOS: Xcode CLI tools)
 2. Install Rust (if not present)
 3. Clone the BackLang repository
 4. Build the release binary
@@ -45,31 +45,25 @@ This will:
 **Linux:**
 ```bash
 # Debian / Ubuntu
-sudo apt install libsqlite3-dev pkg-config build-essential curl
+sudo apt install build-essential curl
 
 # Arch Linux
-sudo pacman -S sqlite pkg-config base-devel curl
+sudo pacman -S base-devel curl
 
 # Fedora
-sudo dnf install libsqlite3x-devel pkgconfig gcc curl
+sudo dnf install gcc curl
 ```
 
 **macOS:**
 ```bash
 # Install Xcode CLI tools
 xcode-select --install
-
-# Optional: pkg-config via Homebrew
-brew install pkg-config
 ```
 
 **Windows:**
 - Install [Visual Studio Build Tools][vs] (or Visual Studio with "Desktop development with C++")
-- Or install [LLVM + clang][llvm] and use `-x clang` with Rust (see [rustup docs][rustup-msvc])
 
 [vs]: https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022
-[llvm]: https://github.com/llvm/llvm-project/releases
-[rustup-msvc]: https://rust-lang.github.io/rustup/installation/windows-msvc.html
 
 ### Install Rust
 

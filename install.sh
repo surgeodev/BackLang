@@ -9,16 +9,23 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
         echo "→ Installing Xcode CLI tools..."
         xcode-select --install
     fi
-    # macOS: libsqlite3 is already present, pkg-config via brew
-    if command -v brew &>/dev/null; then
-        brew install pkg-config
-    fi
 elif command -v apt &>/dev/null; then
-    sudo apt update && sudo apt install -y libsqlite3-dev pkg-config build-essential curl
+    sudo apt update && sudo apt install -y build-essential curl
 elif command -v pacman &>/dev/null; then
-    sudo pacman -S --needed sqlite pkg-config base-devel curl
+    sudo pacman -S --needed base-devel curl
 elif command -v dnf &>/dev/null; then
-    sudo dnf install -y libsqlite3x-devel pkgconfig gcc curl
+    sudo dnf install -y gcc curl
+fi
+
+# pkg-config only on non-Windows (bundled-sqlite doesn't require it)
+if ! command -v pkg-config &>/dev/null; then
+    if command -v apt &>/dev/null; then
+        sudo apt install -y pkg-config
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -S --needed pkg-config
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y pkgconfig
+    fi
 fi
 
 # Rust
