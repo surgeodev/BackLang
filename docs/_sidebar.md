@@ -1,5 +1,6 @@
 - **Getting Started**
   - [Overview](README)
+  - [Downloads](Downloads)
   - [Installation](Installation)
   - [Quick Start](Quick-Start)
   - [CLI Reference](CLI)
