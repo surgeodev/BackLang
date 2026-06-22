@@ -13,8 +13,8 @@ curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.sh 
 ```
 
 **Windows** (CMD — curl built-in):
-```bat
-curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.bat | cmd
+```cmd
+curl -fsSLo %TEMP%\install.bat https://raw.githubusercontent.com/surgeodev/BackLang/main/install.bat && %TEMP%\install.bat
 ```
 
 **Or download binaries directly:** [surgeodev.github.io/BackLang/#/Downloads](https://surgeodev.github.io/BackLang/#/Downloads)

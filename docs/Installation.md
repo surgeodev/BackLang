@@ -16,8 +16,8 @@ This will:
 
 ## Windows (One-Line)
 
-```bat
-curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.bat | cmd
+```cmd
+curl -fsSLo %TEMP%\install.bat https://raw.githubusercontent.com/surgeodev/BackLang/main/install.bat && %TEMP%\install.bat
 ```
 
 This will:

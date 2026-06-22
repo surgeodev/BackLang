@@ -54,8 +54,8 @@ sudo mv backlang-aarch64-apple-darwin /usr/local/bin/bl
 ### One-Click Install (Windows)
 
 Run in CMD:
-```bat
-curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.bat | cmd
+```cmd
+curl -fsSLo %TEMP%\install.bat https://raw.githubusercontent.com/surgeodev/BackLang/main/install.bat && %TEMP%\install.bat
 ```
 
 ### VS Code Extension
