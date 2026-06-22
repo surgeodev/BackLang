@@ -1,26 +1,81 @@
 # BackLang
 
-A fast, embeddable scripting language with SQLite support and HTTP server capabilities.
+A fast, embeddable scripting language with built-in SQLite, HTTP server, and a full VS Code debugger.
 
-📖 Documentation complète : https://surgeodev.github.io/BackLang
-
-## Quick Install
+[![Docs](https://img.shields.io/badge/docs-surgeodev.github.io/BackLang-blue)](https://surgeodev.github.io/BackLang)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.sh | bash
 ```
 
-## Usage
+## Quick Example
 
-```bash
-bl --check file.bl        # syntax check
-bl file.bl                # run
-bl --debug file.bl        # debug (VS Code)
+```bl
+// server.bl — REST API with SQLite
+import "std.db"
+let DB = "/tmp/app.db"
+db.open(DB)
+db.execute(DB, "CREATE TABLE IF NOT EXISTS items (id INTEGER PRIMARY KEY, name TEXT)")
+
+server app { port: 8080; cors: true }
+
+endpoint GET "/api/items" {
+    return {status: 200, body: db.query(DB, "SELECT * FROM items")}
+}
+
+endpoint POST "/api/items" {
+    db.execute(DB, "INSERT INTO items (name) VALUES ('" + req.body.name + "')")
+    return {status: 201, body: {ok: true}}
+}
 ```
+
+Run: `bl server.bl` → `curl http://localhost:8080/api/items`
 
 ## Features
 
-- SQLite persistence (`db.open`, `db.query`, `db.execute`)
-- HTTP server with CORS (`server`, `endpoint GET/POST/...`)
-- Rich VS Code extension (debugger, completions, hover, inlay hints, folding)
-- Standard library: `std.os`, `std.random`, `std.math`, `std.fs`, `std.string`
+- **HTTP Server** — Built-in Axum server with CORS, path params, middlewares
+- **SQLite** — Full SQLite3 support (`db.open`, `db.query`, `db.execute`)
+- **Standard Library** — os, fs, math, string, random modules
+- **VS Code Extension** — Syntax highlighting, completions, hover, inlay hints, folding, symbols, rename, references, diagnostics, snippets, CodeLens
+- **Interactive Debugger** — Breakpoints, step over/in/out, continue
+- **Fast** — Compiled Rust interpreter with instant startup
+- **Simple** — C-like syntax, dynamic typing, zero dependencies at runtime
+
+## Documentation
+
+Full documentation: **[surgeodev.github.io/BackLang](https://surgeodev.github.io/BackLang)**
+
+## Quick Install (Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.sh | bash
+```
+
+### Manual Build
+
+```bash
+sudo apt install libsqlite3-dev pkg-config build-essential
+git clone https://github.com/surgeodev/BackLang
+cd BackLang
+cargo build --release
+sudo cp target/release/bl /usr/local/bin/bl
+```
+
+## Usage
+
+```
+bl file.bl              Execute a program
+bl --check file.bl      Syntax check only
+bl --debug file.bl      Debug mode (for VS Code debugger)
+```
+
+## VS Code Extension
+
+```bash
+code --install-extension vscode-extension/backlang-debug-1.0.0.vsix
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE)

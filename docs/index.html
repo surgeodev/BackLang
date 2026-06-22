@@ -1,237 +1,47 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BackLang — Documentation</title>
+  <title>BackLang Documentation</title>
+  <link rel="icon" href="https://raw.githubusercontent.com/surgeodev/BackLang/main/vscode-extension/media/icon.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsify@4/lib/themes/dark.min.css">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; line-height: 1.6; }
-    .sidebar { position: fixed; top: 0; left: 0; width: 280px; height: 100vh; background: #161b22; border-right: 1px solid #30363d; padding: 24px; overflow-y: auto; }
-    .sidebar h2 { font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #8b949e; margin: 20px 0 8px; }
-    .sidebar a { display: block; padding: 6px 12px; color: #c9d1d9; text-decoration: none; border-radius: 6px; font-size: 14px; }
-    .sidebar a:hover { background: #1f6feb33; color: #58a6ff; }
-    .sidebar .logo { font-size: 22px; font-weight: 700; color: #f0f6fc; margin-bottom: 8px; }
-    .sidebar .logo span { color: #58a6ff; }
-    .content { margin-left: 280px; max-width: 800px; padding: 40px 60px; }
-    h1 { font-size: 32px; color: #f0f6fc; margin-bottom: 16px; }
-    h2 { font-size: 24px; color: #f0f6fc; margin-top: 40px; margin-bottom: 12px; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
-    h3 { font-size: 18px; color: #f0f6fc; margin-top: 28px; margin-bottom: 8px; }
-    p { margin-bottom: 16px; }
-    code { background: #1c2128; color: #ffa657; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
-    pre { background: #1c2128; padding: 16px; border-radius: 8px; overflow-x: auto; margin-bottom: 16px; border: 1px solid #30363d; }
-    pre code { background: none; padding: 0; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
-    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #30363d; }
-    th { color: #8b949e; font-weight: 600; }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
-    .badge-green { background: #1b4526; color: #3fb950; }
-    .badge-blue { background: #1a3352; color: #58a6ff; }
-    .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid #30363d; color: #8b949e; font-size: 13px; }
-    .quick-install { background: #1c2128; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin: 20px 0; }
-    .quick-install code { font-size: 15px; }
+    :root { --docsifytabs-border-color: #30363d; --sidebar-width: 22rem; }
+    .sidebar { background: #161b22; border-right: 1px solid #30363d; }
+    .sidebar-nav { padding: 12px; }
+    .sidebar ul li a { color: #c9d1d9; font-size: 14px; }
+    .sidebar ul li a:hover { color: #58a6ff; }
+    .sidebar ul li.active > a { color: #58a6ff; border-right: 2px solid #58a6ff; }
+    .markdown-section { max-width: 900px; }
+    .markdown-section h1 { color: #f0f6fc; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
+    .markdown-section h2 { color: #f0f6fc; border-bottom: 1px solid #30363d; padding-bottom: 6px; margin-top: 32px; }
+    .markdown-section h3 { color: #f0f6fc; margin-top: 24px; }
+    .markdown-section code { background: #1c2128; color: #ffa657; padding: 2px 6px; border-radius: 4px; }
+    .markdown-section pre { background: #1c2128; border: 1px solid #30363d; border-radius: 6px; }
+    .markdown-section pre code { background: none; }
+    .markdown-section table { border-collapse: collapse; }
+    .markdown-section th, .markdown-section td { border: 1px solid #30363d; padding: 8px 12px; }
+    .markdown-section th { background: #1c2128; color: #8b949e; }
+    .markdown-section blockquote { border-left: 4px solid #58a6ff; background: #1c2128; padding: 12px 16px; }
+    .app-nav { display: none; }
   </style>
 </head>
 <body>
-  <nav class="sidebar">
-    <div class="logo">Back<span>Lang</span></div>
-    <a href="#intro">Introduction</a>
-    <a href="#install">Installation</a>
-    <h2>Langage</h2>
-    <a href="#syntax">Syntaxe</a>
-    <a href="#types">Types</a>
-    <a href="#variables">Variables</a>
-    <a href="#control">Contrôle</a>
-    <a href="#functions">Fonctions</a>
-    <a href="#std">Bibliothèque std</a>
-    <h2>Serveur HTTP</h2>
-    <a href="#server">Server & Endpoints</a>
-    <a href="#cors">CORS</a>
-    <a href="#sqlite">SQLite</a>
-    <h2>VS Code</h2>
-    <a href="#vscode">Extension</a>
-    <a href="#debug">Débogueur</a>
-  </nav>
-
-  <div class="content">
-    <h1 id="intro">BackLang</h1>
-    <p>Langage de script rapide avec support SQLite, serveur HTTP intégré, et débogueur VS Code.</p>
-
-    <div class="quick-install">
-      <strong>Installation en une commande :</strong><br>
-      <code>curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.sh | bash</code>
-    </div>
-
-    <h2 id="install">Installation</h2>
-    <pre><code># Automatique (Linux)
-curl -fsSL https://raw.githubusercontent.com/surgeodev/BackLang/main/install.sh | bash
-
-# Manuel
-sudo apt install libsqlite3-dev pkg-config build-essential
-cargo build --release
-sudo cp target/release/bl /usr/local/bin/bl</code></pre>
-
-    <h3>Utilisation</h3>
-    <pre><code>bl --check file.bl        # Vérifier la syntaxe
-bl file.bl                # Exécuter
-bl --debug file.bl        # Déboguer (VS Code)</code></pre>
-
-    <h2 id="syntax">Syntaxe</h2>
-    <pre><code>// Commentaires
-let x = 42
-const PI = 3.14
-print("Hello, World!")</code></pre>
-
-    <h2 id="types">Types</h2>
-    <table>
-      <tr><th>Type</th><th>Exemple</th></tr>
-      <tr><td>null</td><td><code>null</code></td></tr>
-      <tr><td>bool</td><td><code>true</code> / <code>false</code></td></tr>
-      <tr><td>num</td><td><code>42</code>, <code>3.14</code></td></tr>
-      <tr><td>str</td><td><code>"hello"</code>, <code>'world'</code></td></tr>
-      <tr><td>array</td><td><code>[1, 2, 3]</code></td></tr>
-      <tr><td>object</td><td><code>{name: "Bob", age: 30}</code></td></tr>
-      <tr><td>function</td><td><code>function add(a, b) -> Num { a + b }</code></td></tr>
-    </table>
-
-    <h2 id="variables">Variables</h2>
-    <pre><code>let x = 10           # mutable
-const PI = 3.14159   # immuable
-x = 20               # ok
-PI = 3               # erreur
-
-let arr = [1, 2, 3]
-push(arr, 4)
-pop(arr)
-
-let obj = {name: "Alice"}
-print(obj.name)      # member access</code></pre>
-
-    <h2 id="control">Structures de contrôle</h2>
-    <pre><code>if x > 0 {
-    print("positif")
-} else {
-    print("negatif")
-}
-
-while i < 10 {
-    i = i + 1
-}
-
-for item in items {
-    print(item)
-}</code></pre>
-
-    <h2 id="functions">Fonctions</h2>
-    <pre><code>function add(a: Num, b: Num) -> Num {
-    a + b
-}
-
-let result = add(3, 4)
-print(result)  // 7</code></pre>
-
-    <h2 id="std">Bibliothèque standard</h2>
-
-    <h3>std.db — SQLite</h3>
-    <pre><code>import "std.db"
-let db = db.open("/tmp/data.db")
-db.execute("CREATE TABLE IF NOT EXISTS users (id INT, name TEXT)")
-let rows = db.query("SELECT * FROM users")</code></pre>
-
-    <h3>std.os — Système</h3>
-    <pre><code>import "std.os"
-let home = std.os.getenv("HOME")
-std.os.exit(0)
-let args = std.os.args()</code></pre>
-
-    <h3>std.fs — Fichiers</h3>
-    <pre><code>import "std.fs"
-let content = std.fs.readFile("data.txt")
-std.fs.writeFile("out.txt", "hello")</code></pre>
-
-    <h3>std.math — Maths</h3>
-    <pre><code>import "std.math"
-print(std.math.sqrt(25))     // 5
-print(std.math.abs(-10))     // 10
-print(std.math.floor(3.7))   // 3
-print(std.math.ceil(3.2))    // 4</code></pre>
-
-    <h3>std.string — Chaînes</h3>
-    <pre><code>import "std.string"
-let parts = std.string.split("a,b,c", ",")
-print(std.string.trim("  hi  "))   // "hi"
-print(std.string.toUpper("hi"))    // "HI"
-print(std.string.toLower("HI"))    // "hi"</code></pre>
-
-    <h3>std.random — Aléatoire</h3>
-    <pre><code>import "std.random"
-let r = std.random.rand()
-let d = std.random.randint(1, 6)   // dé 1-6</code></pre>
-
-    <h3>Builtins</h3>
-    <table>
-      <tr><th>Fonction</th><th>Description</th></tr>
-      <tr><td><code>print(x)</code></td><td>Afficher une valeur</td></tr>
-      <tr><td><code>len(x)</code></td><td>Longueur (str/array)</td></tr>
-      <tr><td><code>push(arr, v)</code></td><td>Ajouter à un array</td></tr>
-      <tr><td><code>pop(arr)</code></td><td>Retirer le dernier élément</td></tr>
-      <tr><td><code>keys(obj)</code></td><td>Clés d'un objet</td></tr>
-      <tr><td><code>str(x)</code></td><td>Convertir en string</td></tr>
-      <tr><td><code>num(x)</code></td><td>Convertir en nombre</td></tr>
-      <tr><td><code>type(x)</code></td><td>Nom du type</td></tr>
-    </table>
-
-    <h2 id="server">Serveur HTTP</h2>
-    <pre><code>server app { port: 8080; cors: true }
-
-endpoint GET "/api/hello" {
-    return {status: 200, body: {message: "Hello"}}
-}
-
-endpoint POST "/api/data" {
-    return {status: 200, body: {received: req.body}}
-}</code></pre>
-
-    <p><code>return {status: N, body: ...}</code> définit le code HTTP et le body JSON.</p>
-
-    <h2 id="sqlite">SQLite intégré</h2>
-    <pre><code>import "std.db"
-
-let dbPath = "/tmp/app.db"
-db.open(dbPath)
-db.execute(dbPath, "CREATE TABLE IF NOT EXISTS items (id INTEGER, name TEXT)")
-
-endpoint GET "/api/items" {
-    return {status: 200, body: db.query(dbPath, "SELECT * FROM items")}
-}
-
-endpoint POST "/api/items" {
-    db.execute(dbPath, "INSERT INTO items VALUES (1, 'test')")
-    return {status: 201, body: {ok: true}}
-}</code></pre>
-
-    <h2 id="vscode">Extension VS Code</h2>
-    <p>L'extension BackLang offre :</p>
-    <ul style="margin-bottom: 16px; padding-left: 20px;">
-      <li>Coloration syntaxique</li>
-      <li>Complétion automatique (mots-clés, builtins, db.*)</li>
-      <li>Documenation au survol</li>
-      <li>Inlay hints (types inférés)</li>
-      <li>CodeLens (▶ Run / Start Server)</li>
-      <li>Folding, symbols, rename, references</li>
-      <li>Diagnostics en temps réel</li>
-      <li>12 snippets</li>
-      <li>Débogueur interactif</li>
-    </ul>
-
-    <h2 id="debug">Débogueur</h2>
-    <p>Lancez le débogueur depuis VS Code (F5) ou en CLI :</p>
-    <pre><code>bl --debug file.bl</code></pre>
-    <p>Supporte : breakpoints, step over, step in, step out, continue.</p>
-
-    <div class="footer">
-      BackLang — MIT License — <a href="https://github.com/surgeodev/BackLang" style="color:#58a6ff;">GitHub</a>
-    </div>
-  </div>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/docsify.min.js"></script>
+  <script>
+    window.$docsify = {
+      name: 'BackLang',
+      repo: 'https://github.com/surgeodev/BackLang',
+      loadSidebar: true,
+      subMaxLevel: 2,
+      search: 'auto',
+      themeColor: '#58a6ff',
+      coverpage: false,
+      auto2top: true,
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/docsify@4/lib/plugins/search.min.js"></script>
 </body>
 </html>
