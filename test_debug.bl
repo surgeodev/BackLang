@@ -1,7 +1,0 @@
-// Test minimal pour débogage
-print("Début")
-let x = std.math.sqrt(25)
-print(x)
-let s = std.string.toUpper("hello")
-print(s)
-print("Fin")
