@@ -7,7 +7,7 @@ pub enum TokenType {
     Eq, EqEq, Neq, Lt, Lte, Gt, Gte, And, Or, Not,
     Arrow, FatArrow,
     Eof, Unknown,
-    Import, Function, Endpoint, Model, Class, Server, Middleware,
+    Import, Export, As, Async, Await, Spawn, TaskKw, Function, Endpoint, Model, Type, Class, Server, Middleware,
     Return, Throw, Try, Catch, If, Else, For, While, In, Break, Continue,
     Let, Const, True, False, Null, Get, Post, Put, Delete, Patch,
 }
@@ -114,9 +114,16 @@ impl Lexer {
                 }
                 let tt = match val.as_str() {
                     "import" => TokenType::Import,
+                    "export" | "pub" => TokenType::Export,
+                    "as" => TokenType::As,
+                    "async" => TokenType::Async,
+                    "await" => TokenType::Await,
+                    "spawn" => TokenType::Spawn,
+                    "task" => TokenType::TaskKw,
                     "function" | "func" | "fn" => TokenType::Function,
                     "endpoint" | "route" => TokenType::Endpoint,
-                    "model" | "type" => TokenType::Model,
+                    "model" => TokenType::Model,
+                    "type" => TokenType::Type,
                     "class" => TokenType::Class,
                     "server" => TokenType::Server,
                     "middleware" => TokenType::Middleware,

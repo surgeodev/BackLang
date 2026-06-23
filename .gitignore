@@ -3,3 +3,4 @@ node_modules/
 out/
 .DS_Store
 *.bl_test.sqlite
+.slim/deepwork/

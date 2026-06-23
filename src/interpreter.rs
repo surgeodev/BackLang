@@ -1,13 +1,17 @@
 use std::collections::HashMap;
 use std::fmt;
 use std::path::Path;
-use std::sync::{Mutex, LazyLock};
+use std::sync::{Mutex, LazyLock, Arc};
 use rusqlite::Connection;
 use crate::parser::*;
 use crate::debugger;
 
 static DB: LazyLock<Mutex<HashMap<String, Connection>>> = LazyLock::new(|| {
     Mutex::new(HashMap::new())
+});
+
+static RUNTIME: LazyLock<tokio::runtime::Runtime> = LazyLock::new(|| {
+    tokio::runtime::Runtime::new().unwrap()
 });
 
 #[derive(Debug, Clone)]
@@ -19,6 +23,7 @@ pub enum Value {
     Arr(Vec<Value>),
     Obj(HashMap<String, Value>),
     Func(FuncData),
+    Task(Arc<Mutex<Option<Value>>>),
 }
 
 impl fmt::Display for Value {
@@ -48,6 +53,7 @@ impl fmt::Display for Value {
                 write!(f, "}}")
             }
             Value::Func(_) => write!(f, "<function>"),
+            Value::Task(_) => write!(f, "<task>"),
         }
     }
 }
@@ -59,6 +65,7 @@ impl PartialEq for Value {
             (Value::Bool(a), Value::Bool(b)) => a == b,
             (Value::Num(a), Value::Num(b)) => a == b,
             (Value::Str(a), Value::Str(b)) => a == b,
+            (Value::Task(_), _) | (_, Value::Task(_)) => false,
             _ => false,
         }
     }
@@ -69,12 +76,15 @@ pub struct FuncData {
     pub name: String,
     pub params: Vec<(String, String)>,
     pub body: Vec<Stmt>,
+    pub exported: bool,
+    pub async_: bool,
 }
 
 #[derive(Debug, Clone)]
 struct VarInfo {
     value: Value,
     mutable: bool,
+    exported: bool,
 }
 
 #[derive(Debug)]
@@ -104,17 +114,38 @@ impl Env {
     fn set(&mut self, name: String, val: Value, mutable: bool) {
         if self.vars.contains_key(&name) {
             if let Some(vi) = self.vars.get(&name) {
-                if vi.mutable { self.vars.insert(name, VarInfo { value: val, mutable }); }
+                if vi.mutable { self.vars.insert(name, VarInfo { value: val, mutable, exported: vi.exported }); }
             }
         } else if let Some(p) = &mut self.parent {
             p.set(name, val, mutable);
         } else {
-            self.vars.insert(name, VarInfo { value: val, mutable });
+            self.vars.insert(name, VarInfo { value: val, mutable, exported: false });
         }
     }
 
     pub fn define(&mut self, name: String, val: Value, mutable: bool) {
-        self.vars.insert(name, VarInfo { value: val, mutable });
+        self.vars.insert(name, VarInfo { value: val, mutable, exported: false });
+    }
+
+    pub fn define_exported(&mut self, name: String, val: Value, mutable: bool) {
+        self.vars.insert(name, VarInfo { value: val, mutable, exported: true });
+    }
+
+    pub fn define_full(&mut self, name: String, val: Value, mutable: bool, exported: bool) {
+        self.vars.insert(name, VarInfo { value: val, mutable, exported });
+    }
+
+    pub fn export_symbols(&self) -> Vec<(String, Value, bool)> {
+        let mut result = vec![];
+        for (name, vi) in &self.vars {
+            if vi.exported {
+                result.push((name.clone(), vi.value.clone(), vi.mutable));
+            }
+        }
+        if let Some(p) = &self.parent {
+            result.extend(p.export_symbols());
+        }
+        result
     }
 
     fn is_mutable(&self, name: &str) -> bool {
@@ -142,23 +173,32 @@ pub fn execute(source: &str, filename: &str) -> Result<(), String> {
     debugger::set_file(filename);
 
     // Charger les imports
-    for import_path in &prog.imports {
-        load_import(import_path, &mut env)?;
+    for imp in &prog.imports {
+        load_import(imp, &mut env)?;
     }
 
-    for v in &prog.models { env.define(v.name.clone(), Value::Obj(HashMap::new()), false); }
+    for v in &prog.models {
+        let val = Value::Obj(HashMap::new());
+        if v.exported { env.define_exported(v.name.clone(), val, false); }
+        else { env.define(v.name.clone(), val, false); }
+    }
     for f in &prog.functions {
-        let fd = FuncData { name: f.name.clone(), params: f.params.clone(), body: f.body.clone() };
-        env.define(f.name.clone(), Value::Func(fd), false);
+        let fd = FuncData { name: f.name.clone(), params: f.params.clone(), body: f.body.clone(), exported: f.exported, async_: f.async_ };
+        if f.exported { env.define_exported(f.name.clone(), Value::Func(fd), false); }
+        else { env.define(f.name.clone(), Value::Func(fd), false); }
     }
 
     // Register middlewares
     for mw in &prog.middlewares {
-        env.define(format!("_middleware_{}", mw.name), Value::Func(FuncData {
+        let fd = FuncData {
             name: mw.name.clone(),
             params: vec![("req".to_string(), "any".to_string())],
             body: mw.body.clone(),
-        }), false);
+            exported: mw.exported,
+            async_: false,
+        };
+        if mw.exported { env.define_exported(format!("_middleware_{}", mw.name), Value::Func(fd), false); }
+        else { env.define(format!("_middleware_{}", mw.name), Value::Func(fd), false); }
     }
 
     // Si un serveur est défini, exécuter le body d'initialisation (variables, db.open, etc.)
@@ -188,7 +228,8 @@ pub fn execute(source: &str, filename: &str) -> Result<(), String> {
 }
 
 // Charger un module importé
-fn load_import(import_path: &str, env: &mut Env) -> Result<(), String> {
+fn load_import(imp: &Import, env: &mut Env) -> Result<(), String> {
+    let import_path = &imp.path;
     // Modules standard (std.xxx)
     if import_path.starts_with("std.") {
         return load_std_module(import_path, env);
@@ -197,7 +238,7 @@ fn load_import(import_path: &str, env: &mut Env) -> Result<(), String> {
     // Chercher d'abord dans le dossier std/ local (import "math" -> std/math.bl)
     let local_std_path = format!("std/{}.bl", import_path.replace('.', "/"));
     if Path::new(&local_std_path).exists() {
-        return load_file_import(&local_std_path, import_path, env);
+        return load_file_import(&local_std_path, imp, env);
     }
 
     // Fichiers locaux : import "mylib" cherche mylib.bl ou ./mylib.bl
@@ -209,7 +250,7 @@ fn load_import(import_path: &str, env: &mut Env) -> Result<(), String> {
     
     for path in paths_to_try {
         if Path::new(&path).exists() {
-            return load_file_import(&path, import_path, env);
+            return load_file_import(&path, imp, env);
         }
     }
     
@@ -219,13 +260,13 @@ fn load_import(import_path: &str, env: &mut Env) -> Result<(), String> {
         .filter(|p| p.exists());
     
     if let Some(pkg_file) = pkg_path {
-        return load_file_import(pkg_file.to_str().unwrap(), import_path, env);
+        return load_file_import(pkg_file.to_str().unwrap(), imp, env);
     }
     
     Err(format!("Import '{}' non trouvé", import_path))
 }
 
-fn load_file_import(file_path: &str, _import_name: &str, env: &mut Env) -> Result<(), String> {
+fn load_file_import(file_path: &str, imp: &Import, env: &mut Env) -> Result<(), String> {
     let source = std::fs::read_to_string(file_path)
         .map_err(|e| format!("Erreur lecture '{}': {}", file_path, e))?;
 
@@ -234,20 +275,42 @@ fn load_file_import(file_path: &str, _import_name: &str, env: &mut Env) -> Resul
     let mut parser = Parser::new(tokens);
     let module_prog = parser.parse();
 
-    // Définir les fonctions et variables du module
-    for v in &module_prog.models { env.define(v.name.clone(), Value::Obj(HashMap::new()), false); }
+    // Exécuter le module dans un scope enfant
+    let mut module_env = Env::child(env);
+    for v in &module_prog.models {
+        if v.exported { module_env.define_exported(v.name.clone(), Value::Obj(HashMap::new()), false); }
+        else { module_env.define(v.name.clone(), Value::Obj(HashMap::new()), false); }
+    }
     for f in &module_prog.functions {
-        let fd = FuncData { name: f.name.clone(), params: f.params.clone(), body: f.body.clone() };
-        env.define(f.name.clone(), Value::Func(fd), false);
+        let fd = FuncData { name: f.name.clone(), params: f.params.clone(), body: f.body.clone(), exported: f.exported, async_: f.async_ };
+        if f.exported { module_env.define_exported(f.name.clone(), Value::Func(fd), false); }
+        else { module_env.define(f.name.clone(), Value::Func(fd), false); }
     }
     for mw in &module_prog.middlewares {
-        env.define(format!("_middleware_{}", mw.name), Value::Func(FuncData {
+        let fd = FuncData {
             name: mw.name.clone(),
             params: vec![("req".to_string(), "any".to_string())],
             body: mw.body.clone(),
-        }), false);
+            exported: mw.exported,
+            async_: false,
+        };
+        if mw.exported { module_env.define_exported(format!("_middleware_{}", mw.name), Value::Func(fd), false); }
+        else { module_env.define(format!("_middleware_{}", mw.name), Value::Func(fd), false); }
     }
-    execute_stmts(&module_prog.body, env)?;
+    execute_stmts(&module_prog.body, &mut module_env)?;
+
+    // Copier les symboles exportés dans l'environnement courant (sauf pour 'import "x" only')
+    if !imp.only {
+        let alias = imp.alias.as_deref().unwrap_or("");
+        for (name, val, mutable) in module_env.export_symbols() {
+            let target_name = if !alias.is_empty() {
+                format!("{}.{}", alias, name)
+            } else {
+                name
+            };
+            env.define(target_name, val, mutable);
+        }
+    }
 
     Ok(())
 }
@@ -255,56 +318,44 @@ fn load_file_import(file_path: &str, _import_name: &str, env: &mut Env) -> Resul
 // Charger un module standard
 fn load_std_module(module_path: &str, env: &mut Env) -> Result<(), String> {
     let module = module_path.strip_prefix("std.").unwrap_or(module_path);
+    let fd = |name: &str, params: Vec<(&str, &str)>| -> FuncData {
+        FuncData {
+            name: name.to_string(),
+            params: params.into_iter().map(|(n, t)| (n.to_string(), t.to_string())).collect(),
+            body: vec![],
+            exported: false,
+            async_: false,
+        }
+    };
     match module {
         "os" => {
-            // Fonctions os (disponibles via std.os.xxx ou après import)
-            env.define("std.os.getenv".to_string(), Value::Func(FuncData {
-                name: "getenv".to_string(), params: vec![("var".into(), "str".into())], body: vec![]
-            }), false);
-            env.define("std.os.exit".to_string(), Value::Func(FuncData {
-                name: "exit".to_string(), params: vec![("code".into(), "num".into())], body: vec![]
-            }), false);
-            env.define("std.os.args".to_string(), Value::Func(FuncData {
-                name: "args".to_string(), params: vec![], body: vec![]
-            }), false);
+            env.define("std.os.getenv".to_string(), Value::Func(fd("getenv", vec![("var", "str")])), false);
+            env.define("std.os.exit".to_string(), Value::Func(fd("exit", vec![("code", "num")])), false);
+            env.define("std.os.args".to_string(), Value::Func(fd("args", vec![])), false);
         }
         "random" => {
-            env.define("std.random.rand".to_string(), Value::Func(FuncData {
-                name: "rand".to_string(), params: vec![], body: vec![]
-            }), false);
-            env.define("std.random.randint".to_string(), Value::Func(FuncData {
-                name: "randint".to_string(), params: vec![("min".into(), "num".into()), ("max".into(), "num".into())], body: vec![]
-            }), false);
+            env.define("std.random.rand".to_string(), Value::Func(fd("rand", vec![])), false);
+            env.define("std.random.randint".to_string(), Value::Func(fd("randint", vec![("min", "num"), ("max", "num")])), false);
         }
         "math" => {
             for f in &["sqrt", "abs", "floor", "ceil"] {
-                env.define(format!("std.math.{}", f), Value::Func(FuncData {
-                    name: f.to_string(), params: vec![("n".into(), "num".into())], body: vec![]
-                }), false);
+                env.define(format!("std.math.{}", f), Value::Func(fd(f, vec![("n", "num")])), false);
             }
         }
         "fs" => {
-            env.define("std.fs.readFile".to_string(), Value::Func(FuncData {
-                name: "readFile".to_string(), params: vec![("path".into(), "str".into())], body: vec![]
-            }), false);
-            env.define("std.fs.writeFile".to_string(), Value::Func(FuncData {
-                name: "writeFile".to_string(), params: vec![("path".into(), "str".into()), ("content".into(), "str".into())], body: vec![]
-            }), false);
+            env.define("std.fs.readFile".to_string(), Value::Func(fd("readFile", vec![("path", "str")])), false);
+            env.define("std.fs.writeFile".to_string(), Value::Func(fd("writeFile", vec![("path", "str"), ("content", "str")])), false);
         }
         "string" => {
             for f in &["split", "trim", "toUpper", "toLower"] {
-                env.define(format!("std.string.{}", f), Value::Func(FuncData {
-                    name: f.to_string(), params: vec![("s".into(), "str".into())], body: vec![]
-                }), false);
+                env.define(format!("std.string.{}", f), Value::Func(fd(f, vec![("s", "str")])), false);
             }
         }
         "db" => {
             for name in &["open", "query", "execute"] {
                 let prefixes = vec![format!("std.db.{}", name), format!("db_{}", name), format!("db.{}", name)];
                 for prefix in prefixes {
-                    env.define(prefix, Value::Func(FuncData {
-                        name: name.to_string(), params: vec![], body: vec![]
-                    }), false);
+                    env.define(prefix, Value::Func(fd(name, vec![])), false);
                 }
             }
         }
@@ -340,6 +391,7 @@ pub fn value_to_json(v: &Value) -> String {
             format!("{{{}}}", items.join(","))
         }
         Value::Func(_) => "\"<function>\"".into(),
+        Value::Task(_) => "\"<task>\"".into(),
     }
 }
 
@@ -363,9 +415,55 @@ fn execute_stmt(stmt: &Stmt, env: &mut Env) -> Result<ExecResult, String> {
         Stmt::Expr(e, _) => eval_expr(e, env).map(ExecResult::Value),
         Stmt::Return(None, _) => Ok(ExecResult::Return(Value::Null)),
         Stmt::Return(Some(e), _) => Ok(ExecResult::Return(eval_expr(e, env)?)),
-        Stmt::Var { name, value, mutable, .. } => {
+        Stmt::Var { name, value, mutable, exported, .. } => {
             let val = if let Some(e) = value { eval_expr(e, env)? } else { Value::Null };
-            env.define(name.clone(), val, *mutable);
+            if *exported { env.define_exported(name.clone(), val, *mutable); }
+            else { env.define(name.clone(), val, *mutable); }
+            Ok(ExecResult::Value(Value::Null))
+        }
+        Stmt::Export(s, _) => {
+            // Export wrapper: mark inner var/func as exported
+            match s.as_ref() {
+                Stmt::Var { name, value, mutable, .. } => {
+                    let val = if let Some(e) = value { eval_expr(e, env)? } else { Value::Null };
+                    env.define_exported(name.clone(), val, *mutable);
+                    Ok(ExecResult::Value(Value::Null))
+                }
+                _ => execute_stmt(s, env),
+            }
+        }
+        Stmt::Await(e, _) => {
+            let val = eval_expr(e, env)?;
+            match val {
+                Value::Task(cell) => {
+                    let result = loop {
+                        let v = cell.lock().unwrap().take();
+                        if let Some(v) = v { break v; }
+                        std::thread::sleep(std::time::Duration::from_millis(1));
+                    };
+                    Ok(ExecResult::Value(result))
+                }
+                _ => Ok(ExecResult::Value(val)),
+            }
+        }
+        Stmt::Spawn(e, _) => {
+            let val = eval_expr(e, env)?;
+            Ok(ExecResult::Value(val))
+        }
+        Stmt::Task { name, body, .. } => {
+            let task_body = body.clone();
+            let mut task_env = Env::child(env);
+            let cell: Arc<Mutex<Option<Value>>> = Arc::new(Mutex::new(None));
+            let cell_clone = cell.clone();
+            RUNTIME.spawn(async move {
+                let result = match execute_stmts(&task_body, &mut task_env) {
+                    Ok(ExecResult::Return(v)) | Ok(ExecResult::Value(v)) => v,
+                    _ => Value::Null,
+                };
+                *cell_clone.lock().unwrap() = Some(result);
+            });
+            let task_val = Value::Task(cell);
+            env.define(name.clone(), task_val, true);
             Ok(ExecResult::Value(Value::Null))
         }
         Stmt::If { cond, then, else_, .. } => {
@@ -575,6 +673,7 @@ fn eval_expr(e: &Expr, env: &mut Env) -> Result<Value, String> {
                     Value::Null => "null", Value::Bool(_) => "bool", Value::Num(_) => "num",
                     Value::Str(_) => "str", Value::Arr(_) => "array", Value::Obj(_) => "object",
                     Value::Func(_) => "function",
+                    Value::Task(_) => "task",
                 };
                 return Ok(Value::Str(t.into()));
             }
@@ -735,28 +834,92 @@ fn eval_expr(e: &Expr, env: &mut Env) -> Result<Value, String> {
                 };
             }
             if let Some(Value::Func(fd)) = env.get(callee) {
-                let mut scope = Env::child(env);
-                for (i, (pname, _)) in fd.params.iter().enumerate() {
-                    scope.define(pname.clone(), vals.get(i).cloned().unwrap_or(Value::Null), false);
+                if fd.async_ {
+                    // Async call — spawn as task
+                    let body = fd.body.clone();
+                    let mut task_env = Env::child(env);
+                    for (i, (pname, _)) in fd.params.iter().enumerate() {
+                        task_env.define(pname.clone(), vals.get(i).cloned().unwrap_or(Value::Null), false);
+                    }
+                    let cell: Arc<Mutex<Option<Value>>> = Arc::new(Mutex::new(None));
+                    let cell_clone = cell.clone();
+                    RUNTIME.spawn(async move {
+                        let result = match execute_stmts(&body, &mut task_env) {
+                            Ok(ExecResult::Return(v)) | Ok(ExecResult::Value(v)) => v,
+                            _ => Value::Null,
+                        };
+                        *cell_clone.lock().unwrap() = Some(result);
+                    });
+                    Ok(Value::Task(cell))
+                } else {
+                    let mut scope = Env::child(env);
+                    for (i, (pname, _)) in fd.params.iter().enumerate() {
+                        scope.define(pname.clone(), vals.get(i).cloned().unwrap_or(Value::Null), false);
+                    }
+                    debugger::inc_depth();
+                    let result = match execute_stmts(&fd.body, &mut scope)? {
+                        ExecResult::Return(v) => Ok(v),
+                        _ => Ok(Value::Null),
+                    };
+                    debugger::dec_depth();
+                    result
                 }
-                debugger::inc_depth();
-                let result = match execute_stmts(&fd.body, &mut scope)? {
-                    ExecResult::Return(v) => Ok(v),
-                    _ => Ok(Value::Null),
-                };
-                debugger::dec_depth();
-                result
             } else {
                 Err(format!("undefined function: {}", callee))
             }
         }
         Expr::Member(obj_expr, key) => {
             if let Expr::Ident(name) = &**obj_expr {
+                // Try as an object first
                 if let Some(Value::Obj(o)) = env.get(name) {
                     return Ok(o.get(key).cloned().unwrap_or(Value::Null));
                 }
+                // Try as a qualified name (alias.exported_name)
+                let qualified = format!("{}.{}", name, key);
+                if let Some(v) = env.get(&qualified) {
+                    return Ok(v);
+                }
             }
             Err("invalid member access".into())
+        }
+        Expr::Spawn(e) => {
+            let expr = e.as_ref();
+            if let Expr::Call { callee, args } = expr {
+                let vals: Vec<Value> = args.iter().map(|a| eval_expr(a, env)).collect::<Result<_,_>>()?;
+                if let Some(Value::Func(fd)) = env.get(callee) {
+                    let body = fd.body.clone();
+                    let mut task_env = Env::child(env);
+                    for (i, (pname, _)) in fd.params.iter().enumerate() {
+                        task_env.define(pname.clone(), vals.get(i).cloned().unwrap_or(Value::Null), false);
+                    }
+                    let cell: Arc<Mutex<Option<Value>>> = Arc::new(Mutex::new(None));
+                    let cell_clone = cell.clone();
+                    RUNTIME.spawn(async move {
+                        let result = match execute_stmts(&body, &mut task_env) {
+                            Ok(ExecResult::Return(v)) | Ok(ExecResult::Value(v)) => v,
+                            _ => Value::Null,
+                        };
+                        *cell_clone.lock().unwrap() = Some(result);
+                    });
+                    return Ok(Value::Task(cell));
+                }
+                return Err(format!("spawn: undefined function '{}'", callee));
+            }
+            Err("spawn requires a function call".into())
+        }
+        Expr::Await(e) => {
+            let val = eval_expr(e, env)?;
+            match val {
+                Value::Task(cell) => {
+                    let result = loop {
+                        let v = cell.lock().unwrap().take();
+                        if let Some(v) = v { break v; }
+                        std::thread::sleep(std::time::Duration::from_millis(1));
+                    };
+                    Ok(result)
+                }
+                _ => Ok(val),
+            }
         }
         Expr::Index(obj_expr, idx_expr) => {
             let val = eval_expr(obj_expr, env)?;

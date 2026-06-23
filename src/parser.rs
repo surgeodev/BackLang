@@ -1,8 +1,16 @@
 use crate::lexer::{Token, TokenType};
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
+pub struct Import {
+    pub path: String,
+    pub alias: Option<String>,
+    pub only: bool,
+    pub exported: bool,
+}
+
+#[derive(Default)]
 pub struct Program {
-    pub imports: Vec<String>,
+    pub imports: Vec<Import>,
     pub functions: Vec<Function>,
     pub endpoints: Vec<Endpoint>,
     pub models: Vec<Model>,
@@ -13,34 +21,38 @@ pub struct Program {
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-pub struct Function { pub name: String, pub params: Vec<(String, String)>, pub body: Vec<Stmt>, pub ret: String }
+pub struct Function { pub name: String, pub params: Vec<(String, String)>, pub body: Vec<Stmt>, pub ret: String, pub exported: bool, pub async_: bool }
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-pub struct Endpoint { pub method: String, pub path: String, pub params: Vec<String>, pub middlewares: Vec<String>, pub body: Vec<Stmt>, pub ret: String }
+pub struct Endpoint { pub method: String, pub path: String, pub params: Vec<String>, pub middlewares: Vec<String>, pub body: Vec<Stmt>, pub ret: String, pub exported: bool }
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-pub struct Model { pub name: String, pub fields: Vec<(String, String)> }
+pub struct Model { pub name: String, pub fields: Vec<(String, String)>, pub exported: bool }
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-pub struct Server { pub name: String, pub port: i32, pub host: String, pub cors: bool }
+pub struct Server { pub name: String, pub port: i32, pub host: String, pub cors: bool, pub exported: bool }
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-pub struct Middleware { pub name: String, pub body: Vec<Stmt> }
+pub struct Middleware { pub name: String, pub body: Vec<Stmt>, pub exported: bool }
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Expr(Expr, usize),
     Return(Option<Expr>, usize),
-    Var { name: String, value: Option<Expr>, mutable: bool, line: usize },
+    Var { name: String, value: Option<Expr>, mutable: bool, line: usize, exported: bool },
     If { cond: Expr, then: Vec<Stmt>, else_: Vec<Stmt>, line: usize },
     While { cond: Expr, body: Vec<Stmt>, line: usize },
     For { var: String, iter: Expr, body: Vec<Stmt>, line: usize },
     Break(usize),
     Continue(usize),
+    Export(Box<Stmt>, usize),
+    Await(Expr, usize),
+    Spawn(Expr, usize),
+    Task { name: String, body: Vec<Stmt>, line: usize },
 }
 
 #[derive(Debug, Clone)]
@@ -57,6 +69,8 @@ pub enum Expr {
     Obj(Vec<(String, Expr)>),
     Member(Box<Expr>, String),
     Index(Box<Expr>, Box<Expr>),
+    Spawn(Box<Expr>),
+    Await(Box<Expr>),
 }
 
 pub struct Parser {
@@ -86,22 +100,50 @@ impl Parser {
         
         while !self.at() {
             let tt = self.cur().tt;
+            let exported = tt == TokenType::Export;
+            if exported { self.adv(); }
+            let is_async = self.cur().tt == TokenType::Async;
+            if is_async { self.adv(); }
+            let tt = self.cur().tt;
+            let async_flag = is_async && tt == TokenType::Function;
             match tt {
-                TokenType::Import => { self.adv(); prog.imports.push(self.cur().value.clone()); self.adv(); }
-                TokenType::Function => prog.functions.push(self.fn_()),
-                TokenType::Endpoint => prog.endpoints.push(self.endpoint()),
-                TokenType::Model => prog.models.push(self.model()),
-                TokenType::Server => prog.servers.push(self.server()),
-                TokenType::Middleware => prog.middlewares.push(self.middleware()),
+                TokenType::Import => {
+                    self.adv();
+                    let path = self.cur().value.clone();
+                    self.adv();
+                    let mut alias = None;
+                    let mut only = false;
+                    if self.check(TokenType::As) {
+                        self.adv();
+                        if self.check(TokenType::Ident) {
+                            alias = Some(self.cur().value.clone());
+                            self.adv();
+                        }
+                    }
+                    if self.check_val("only") {
+                        only = true;
+                        self.adv();
+                    }
+                    prog.imports.push(Import { path, alias, only, exported });
+                }
+                TokenType::Function => prog.functions.push(self.fn_(exported, async_flag)),
+                TokenType::Endpoint => prog.endpoints.push(self.endpoint(exported)),
+                TokenType::Model => prog.models.push(self.model(exported)),
+                TokenType::Server => prog.servers.push(self.server(exported)),
+                TokenType::Middleware => prog.middlewares.push(self.middleware(exported)),
                 TokenType::Semi => self.adv(),
-                _ => prog.body.push(self.stmt()),
+                _ => {
+                    if is_async { prog.body.push(Stmt::Await(self.expr(), 0)); }
+                    else if exported { prog.body.push(Stmt::Export(Box::new(self.stmt()), 0)); }
+                    else { prog.body.push(self.stmt()); }
+                }
             }
         }
         
         prog
     }
     
-    fn fn_(&mut self) -> Function {
+    fn fn_(&mut self, exported: bool, async_flag: bool) -> Function {
         self.adv();
         let name = if self.check(TokenType::Ident) { let n = self.cur().value.clone(); self.adv(); n } else { "fn".into() };
         let mut params = vec![];
@@ -120,10 +162,10 @@ impl Parser {
         }
         let ret = if self.check(TokenType::Arrow) { self.adv(); let r = self.cur().value.clone(); self.adv(); r } else { "void".into() };
         let body = self.block();
-        Function { name, params, body, ret }
+        Function { name, params, body, ret, exported, async_: async_flag }
     }
     
-    fn endpoint(&mut self) -> Endpoint {
+    fn endpoint(&mut self, exported: bool) -> Endpoint {
         self.adv();
         let mut method = "GET".to_string();
         let mut path = "/".to_string();
@@ -161,10 +203,10 @@ impl Parser {
             .map(|p| p.trim_start_matches(':').to_string())
             .collect();
         
-        Endpoint { method, path, params, middlewares, body, ret }
+        Endpoint { method, path, params, middlewares, body, ret, exported }
     }
     
-    fn model(&mut self) -> Model {
+    fn model(&mut self, exported: bool) -> Model {
         self.adv();
         let name = if self.check(TokenType::Ident) { let n = self.cur().value.clone(); self.adv(); n } else { "T".into() };
         let mut fields = vec![];
@@ -177,10 +219,10 @@ impl Parser {
             }
             self.adv();
         }
-        Model { name, fields }
+        Model { name, fields, exported }
     }
     
-    fn server(&mut self) -> Server {
+    fn server(&mut self, exported: bool) -> Server {
         self.adv(); // skip 'server'
         
         let name = if self.check(TokenType::Ident) || self.check(TokenType::String) {
@@ -225,13 +267,13 @@ impl Parser {
             }
         }
         
-        Server { name, port, host, cors }
+        Server { name, port, host, cors, exported }
     }
     
-    fn middleware(&mut self) -> Middleware {
+    fn middleware(&mut self, exported: bool) -> Middleware {
         self.adv();
         let name = if self.check(TokenType::Ident) { let n = self.cur().value.clone(); self.adv(); n } else { "mw".into() };
-        Middleware { name, body: self.block() }
+        Middleware { name, body: self.block(), exported }
     }
     
     fn block(&mut self) -> Vec<Stmt> {
@@ -255,7 +297,15 @@ impl Parser {
         else if self.check(TokenType::Let) || self.check(TokenType::Const) { self.var_stmt(l) }
         else if self.check(TokenType::Break) { self.adv(); Stmt::Break(l) }
         else if self.check(TokenType::Continue) { self.adv(); Stmt::Continue(l) }
+        else if self.check_val("task") { self.task(l) }
         else { Stmt::Expr(self.expr(), l) }
+    }
+
+    fn task(&mut self, line: usize) -> Stmt {
+        self.adv(); // skip 'task'
+        let name = if self.check(TokenType::Ident) { let n = self.cur().value.clone(); self.adv(); n } else { "bg".into() };
+        let body = self.block();
+        Stmt::Task { name, body, line }
     }
     
     fn if_(&mut self, line: usize) -> Stmt {
@@ -287,7 +337,7 @@ impl Parser {
         self.adv();
         let name = if self.check(TokenType::Ident) { let n = self.cur().value.clone(); self.adv(); n } else { "x".into() };
         let value = if self.check(TokenType::Eq) { self.adv(); Some(self.expr()) } else { None };
-        Stmt::Var { name, value, mutable, line }
+        Stmt::Var { name, value, mutable, line, exported: false }
     }
     
     fn expr(&mut self) -> Expr { self.assign() }
@@ -375,7 +425,9 @@ impl Parser {
         else if self.check(TokenType::True) { self.adv(); Expr::Bool(true) }
         else if self.check(TokenType::False) { self.adv(); Expr::Bool(false) }
         else if self.check(TokenType::Null) { self.adv(); Expr::Null }
-        else if self.check(TokenType::Ident) { let id = self.cur().value.clone(); self.adv(); Expr::Ident(id) }
+        else if self.check(TokenType::Ident) || self.check(TokenType::Type) { let id = self.cur().value.clone(); self.adv(); Expr::Ident(id) }
+        else if self.check(TokenType::Spawn) { self.adv(); Expr::Spawn(Box::new(self.expr())) }
+        else if self.check(TokenType::Await) { self.adv(); Expr::Await(Box::new(self.expr())) }
         else if self.check(TokenType::LParen) { self.adv(); let e = self.expr(); if self.check(TokenType::RParen) { self.adv(); } e }
         else if self.check(TokenType::LBracket) { self.adv(); let a = self.arr(); self.adv(); a }
         else if self.check(TokenType::LBrace) { self.adv(); let o = self.obj(); self.adv(); o }
@@ -411,8 +463,10 @@ pub fn stmt_line(s: &Stmt) -> usize {
     match s {
         Stmt::Expr(_, l) | Stmt::Return(_, l)
             | Stmt::Var { line: l, .. } | Stmt::If { line: l, .. }
-            | Stmt::While { line: l, .. } | Stmt::For { line: l, .. }
+            | Stmt::While { line: l, .. } | Stmt::For { line: l, .. } | Stmt::Task { line: l, .. }
             | Stmt::Break(l) | Stmt::Continue(l) => *l,
+        Stmt::Export(s, _) => stmt_line(s),
+        Stmt::Await(_, l) | Stmt::Spawn(_, l) => *l,
     }
 }
 
@@ -420,6 +474,9 @@ pub fn expr_to_name(e: &Expr) -> String {
     match e {
         Expr::Ident(s) => s.clone(),
         Expr::Member(obj, member) => format!("{}.{}", expr_to_name(obj), member),
+        Expr::Call { callee, .. } => callee.clone(),
         _ => String::new(),
     }
 }
+
+

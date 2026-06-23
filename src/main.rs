@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 mod lexer;
 mod parser;
@@ -34,7 +35,35 @@ fn main() {
         cmd_bench();
         return;
     }
-    
+
+    if args[1] == "install" {
+        if args.len() < 3 { eprintln!("Usage: bl install <package>"); return; }
+        cmd_install_pkg(&args[2]);
+        return;
+    }
+
+    if args[1] == "list" {
+        cmd_list_pkgs();
+        return;
+    }
+
+    if args[1] == "search" {
+        if args.len() < 3 { eprintln!("Usage: bl search <term>"); return; }
+        cmd_search_pkgs(&args[2]);
+        return;
+    }
+
+    if args[1] == "test" || args[1] == "--test" {
+        cmd_test(args.get(2).map(|s| s.as_str()));
+        return;
+    }
+
+    if args[1] == "watch" || args[1] == "--watch" {
+        if args.len() < 3 { eprintln!("Usage: bl watch <file.bl>"); return; }
+        cmd_watch(&args[2]);
+        return;
+    }
+
     let debug_mode = args[1] == "--debug";
     let check_only = args[1] == "--check";
     let file = if check_only || debug_mode { &args[2] } else { &args[1] };
@@ -66,6 +95,11 @@ fn print_usage() {
     println!("       bl --update            (update to latest release)");
     println!("       bl --install           (add to PATH on Windows)");
     println!("       bl --bench             (run benchmarks)");
+    println!("       bl install <pkg>       (install a package)");
+    println!("       bl list                (list installed packages)");
+    println!("       bl search <term>       (search packages)");
+    println!("       bl test [path]         (run tests)");
+    println!("       bl watch <file.bl>     (hot reload)");
 }
 
 fn cmd_update() {
@@ -189,6 +223,231 @@ fn cmd_bench() {
     println!("  bl bench/http.bl");
     println!("  wrk -t4 -c100 -d10s http://localhost:9998/");
     println!("──────────────────────────────────────────────");
+}
+
+fn cmd_install_pkg(name: &str) {
+    let home = dirs::home_dir().unwrap_or_else(|| Path::new(".").to_path_buf());
+    let pkg_dir = home.join(".backlang").join("packages").join(name);
+    
+    if pkg_dir.join("index.bl").exists() {
+        println!("Package '{}' already installed.", name);
+        return;
+    }
+    
+    println!("Installing '{}'...", name);
+    
+    // Try registry lookup via GitHub API
+    let registry_url = format!(
+        "https://api.github.com/search/repositories?q={}+language:BackLang&sort=stars",
+        name
+    );
+    
+    let output = Command::new("curl")
+        .args(["-s", "-H", "Accept: application/vnd.github.v3+json", &registry_url])
+        .output();
+    
+    if let Ok(output) = output {
+        if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout) {
+            if let Some(items) = json["items"].as_array() {
+                for item in items {
+                    let full_name = item["full_name"].as_str().unwrap_or("");
+                    let desc = item["description"].as_str().unwrap_or("");
+                    let repo_name = full_name.split('/').last().unwrap_or("");
+                    
+                    if repo_name == name || full_name == name {
+                        let clone_url = item["clone_url"].as_str().unwrap_or("");
+                        if !clone_url.is_empty() {
+                            println!("Found: {} — {}", full_name, desc);
+                            println!("Cloning {}...", clone_url);
+                            
+                            fs::create_dir_all(&pkg_dir).ok();
+                            
+                            let status = Command::new("git")
+                                .args(["clone", "--depth", "1", clone_url, pkg_dir.to_str().unwrap()])
+                                .status();
+                            
+                            if let Ok(s) = status {
+                                if s.success() {
+                                    println!("Package '{}' installed.", name);
+                                } else {
+                                    eprintln!("Failed to clone repository.");
+                                }
+                            }
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Fallback: try direct git clone from GitHub user/repo
+    if name.contains('/') {
+        let clone_url = format!("https://github.com/{}.git", name);
+        println!("Cloning {}...", clone_url);
+        fs::create_dir_all(&pkg_dir).ok();
+        let status = Command::new("git")
+            .args(["clone", "--depth", "1", &clone_url, pkg_dir.to_str().unwrap()])
+            .status();
+        if let Ok(s) = status {
+            if s.success() {
+                println!("Package '{}' installed.", name);
+                return;
+            }
+        }
+    }
+    
+    eprintln!("Package '{}' not found.", name);
+}
+
+fn cmd_list_pkgs() {
+    let home = dirs::home_dir().unwrap_or_else(|| Path::new(".").to_path_buf());
+    let pkg_dir = home.join(".backlang").join("packages");
+    
+    if !pkg_dir.exists() {
+        println!("No packages installed.");
+        return;
+    }
+    
+    println!("Installed packages:");
+    if let Ok(entries) = fs::read_dir(&pkg_dir) {
+        let mut found = false;
+        for entry in entries.flatten() {
+            if entry.path().is_dir() {
+                if let Some(name) = entry.file_name().to_str() {
+                    let has_index = entry.path().join("index.bl").exists();
+                    println!("  {} {}", name, if has_index { "" } else { "(no index.bl)" });
+                    found = true;
+                }
+            }
+        }
+        if !found {
+            println!("  (none)");
+        }
+    }
+}
+
+fn cmd_search_pkgs(term: &str) {
+    let url = format!(
+        "https://api.github.com/search/repositories?q={}+language:BackLang&sort=stars",
+        term
+    );
+    
+    let output = Command::new("curl")
+        .args(["-s", "-H", "Accept: application/vnd.github.v3+json", &url])
+        .output();
+    
+    match output {
+        Ok(o) if o.status.success() => {
+            if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&o.stdout) {
+                let items = json["items"].as_array().map(|a| a.len()).unwrap_or(0);
+                println!("Found {} packages for '{}':", items, term);
+                if let Some(repos) = json["items"].as_array() {
+                    for repo in repos {
+                        let name = repo["full_name"].as_str().unwrap_or("?");
+                        let desc = repo["description"].as_str().unwrap_or("");
+                        let stars = repo["stargazers_count"].as_i64().unwrap_or(0);
+                        println!("  {} (★{}) — {}", name, stars, desc);
+                    }
+                }
+            }
+        }
+        _ => {
+            eprintln!("Search failed (check internet connection)");
+        }
+    }
+}
+
+fn cmd_test(path: Option<&str>) {
+    use std::path::Path;
+    
+    let test_dir = path.map(|p| p.to_string()).unwrap_or_else(|| "tests".to_string());
+    let test_path = Path::new(&test_dir);
+    
+    if !test_path.exists() {
+        println!("No tests directory found.");
+        return;
+    }
+    
+    let mut passed = 0;
+    let mut failed = 0;
+    let mut errors: Vec<String> = vec![];
+    
+    if test_path.is_dir() {
+        for entry in fs::read_dir(test_path).unwrap().flatten() {
+            let path = entry.path();
+            if path.extension().map(|e| e == "bl").unwrap_or(false) {
+                let src = match fs::read_to_string(&path) {
+                    Ok(s) => s,
+                    Err(e) => { errors.push(format!("  {} — read error: {}", path.display(), e)); failed += 1; continue; }
+                };
+                match interpreter::execute(&src, path.to_str().unwrap()) {
+                    Ok(()) => {
+                        println!("  ✓ {}", path.display());
+                        passed += 1;
+                    }
+                    Err(e) => {
+                        println!("  ✗ {} — {}", path.display(), e);
+                        errors.push(format!("  {} — {}", path.display(), e));
+                        failed += 1;
+                    }
+                }
+            }
+        }
+    } else {
+        let src = match fs::read_to_string(test_path) {
+            Ok(s) => s,
+            Err(e) => { eprintln!("Error reading {}: {}", test_path.display(), e); return; }
+        };
+        match interpreter::execute(&src, test_path.to_str().unwrap()) {
+            Ok(()) => { passed += 1; }
+            Err(e) => { errors.push(format!("  {} — {}", test_path.display(), e)); failed += 1; }
+        }
+    }
+    
+    println!("\nTest results: {} passed, {} failed", passed, failed);
+    for e in &errors {
+        eprintln!("{}", e);
+    }
+}
+
+fn cmd_watch(file: &str) {
+    let file_path = file.to_string();
+    println!("Watching {} for changes...", file_path);
+    println!("Press Ctrl+C to stop.");
+    
+    loop {
+        // Read and execute the file
+        let src = match fs::read_to_string(&file_path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("Error reading {}: {}", file_path, e);
+                std::thread::sleep(std::time::Duration::from_millis(1000));
+                continue;
+            }
+        };
+        
+        // Get modification time
+        let mtime = fs::metadata(&file_path)
+            .and_then(|m| m.modified())
+            .ok();
+        
+        if let Err(e) = interpreter::execute(&src, &file_path) {
+            eprintln!("Error: {}", e);
+        }
+        
+        // Wait for file change (poll every 500ms)
+        loop {
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            let new_mtime = fs::metadata(&file_path)
+                .and_then(|m| m.modified())
+                .ok();
+            if new_mtime != mtime && new_mtime.is_some() {
+                println!("\nFile changed, reloading...");
+                break;
+            }
+        }
+    }
 }
 
 fn cmd_install() {
