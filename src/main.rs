@@ -216,16 +216,16 @@ fn cmd_bench() {
     println!("Version:       v{}", env!("CARGO_PKG_VERSION"));
     println!("Engine:        Tree-walking interpreter (Rust)");
     println!("Binary size:   {} KB", size);
-    println!("");
+    println!();
     println!("Reference throughput (AMD Ryzen 9 7950X):");
     println!("  HTTP server:  ~120,000 req/s (wrk -t4 -c100)");
     println!("  SQLite:       10k SELECTs in ~42ms");
     println!("  Startup:      ~2ms");
     println!("  Memory:       ~3.2 MB RSS idle");
-    println!("");
+    println!();
     println!("Run on your hardware:");
     println!("  wrk -t4 -c100 -d10s http://localhost:8080/");
-    println!("");
+    println!();
     println!("Or use the benchmark server in bench/http.bl:");
     println!("  bl bench/http.bl");
     println!("  wrk -t4 -c100 -d10s http://localhost:9998/");
@@ -259,7 +259,7 @@ fn cmd_install_pkg(name: &str) {
                 for item in items {
                     let full_name = item["full_name"].as_str().unwrap_or("");
                     let desc = item["description"].as_str().unwrap_or("");
-                    let repo_name = full_name.split('/').last().unwrap_or("");
+                    let repo_name = full_name.split('/').next_back().unwrap_or("");
                     
                     if repo_name == name || full_name == name {
                         let clone_url = item["clone_url"].as_str().unwrap_or("");
@@ -427,7 +427,8 @@ fn cmd_publish_pkg(opt: Option<&str>) {
     };
 
     // Create and push tag
-    let tag = format!("v{}", pkg_version);
+    let version_stripped = pkg_version.trim_start_matches('v');
+    let tag = format!("v{}", version_stripped);
     println!("Creating git tag {}...", tag);
     Command::new("git")
         .args(["tag", "-f", &tag, "-m", &format!("{} v{}", pkg_name, pkg_version)])
@@ -709,7 +710,7 @@ fn cmd_install() {
                     home.join(".bash_profile"),
                     home.join(".profile"),
                 ];
-                let path_line = format!("\nexport PATH=\"$HOME/.local/bin:$PATH\"\n");
+                let path_line = "\nexport PATH=\"$HOME/.local/bin:$PATH\"\n".to_string();
                 let mut added = false;
                 for rc in &rc_files {
                     if rc.exists() {
@@ -732,7 +733,6 @@ fn cmd_install() {
                 println!("  Restart your terminal or run: export PATH=\"$HOME/.local/bin:$PATH\"");
             } else {
                 eprintln!("Failed to install. Try: sudo cp {} /usr/local/bin/bl", exe.display());
-                return;
             }
         }
     }

@@ -150,7 +150,7 @@ impl Env {
 
     fn is_mutable(&self, name: &str) -> bool {
         self.vars.get(name).map(|vi| vi.mutable)
-            .unwrap_or_else(|| self.parent.as_ref().map_or(false, |p| p.is_mutable(name)))
+            .unwrap_or_else(|| self.parent.as_ref().is_some_and(|p| p.is_mutable(name)))
     }
 }
 
@@ -437,18 +437,15 @@ fn execute_stmt(stmt: &Stmt, env: &mut Env) -> Result<ExecResult, String> {
             match val {
                 Value::Task(cell) => {
                     let result = loop {
-                        let v = cell.lock().unwrap().take();
-                        if let Some(v) = v { break v; }
+                        if let Some(v) = cell.lock().unwrap().as_ref().cloned() {
+                            break v;
+                        }
                         std::thread::sleep(std::time::Duration::from_millis(1));
                     };
                     Ok(ExecResult::Value(result))
                 }
                 _ => Ok(ExecResult::Value(val)),
             }
-        }
-        Stmt::Spawn(e, _) => {
-            let val = eval_expr(e, env)?;
-            Ok(ExecResult::Value(val))
         }
         Stmt::Task { name, body, .. } => {
             let task_body = body.clone();
@@ -678,22 +675,17 @@ fn eval_expr(e: &Expr, env: &mut Env) -> Result<Value, String> {
                 return Ok(Value::Str(t.into()));
             }
 
-            if callee == "str" {
-                if vals.is_empty() { return Ok(Value::Str("".into())); }
-                return Ok(Value::Str(vals[0].to_string()));
-            }
-
             // Standard library : std.os.*
             if callee.starts_with("std.os.") {
                 let func = callee.strip_prefix("std.os.").unwrap();
                 return match func {
                     "getenv" => {
-                        let var = vals.get(0).and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
+                        let var = vals.first().and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
                             .ok_or("getenv requires string arg")?;
                         Ok(std::env::var(var).map(Value::Str).unwrap_or(Value::Null))
                     }
                     "exit" => {
-                        let code = vals.get(0).and_then(|v| if let Value::Num(n) = v { Some(*n as i32) } else { None })
+                        let code = vals.first().and_then(|v| if let Value::Num(n) = v { Some(*n as i32) } else { None })
                             .unwrap_or(0);
                         std::process::exit(code);
                     }
@@ -711,7 +703,7 @@ fn eval_expr(e: &Expr, env: &mut Env) -> Result<Value, String> {
                 return match func {
                     "rand" => Ok(Value::Num(rand::random::<f64>())),
                     "randint" => {
-                        let min = vals.get(0).and_then(|v| if let Value::Num(n) = v { Some(*n as i64) } else { None })
+                        let min = vals.first().and_then(|v| if let Value::Num(n) = v { Some(*n as i64) } else { None })
                             .unwrap_or(0);
                         let max = vals.get(1).and_then(|v| if let Value::Num(n) = v { Some(*n as i64) } else { None })
                             .unwrap_or(100);
@@ -725,7 +717,7 @@ fn eval_expr(e: &Expr, env: &mut Env) -> Result<Value, String> {
             // Standard library : std.math.*
             if callee.starts_with("std.math.") {
                 let func = callee.strip_prefix("std.math.").unwrap();
-                let n = vals.get(0).and_then(|v| if let Value::Num(n) = v { Some(*n) } else { None })
+                let n = vals.first().and_then(|v| if let Value::Num(n) = v { Some(*n) } else { None })
                     .ok_or("math function requires number arg")?;
                 return match func {
                     "sqrt" => Ok(Value::Num(n.sqrt())),
@@ -741,14 +733,14 @@ fn eval_expr(e: &Expr, env: &mut Env) -> Result<Value, String> {
                 let func = callee.strip_prefix("std.fs.").unwrap();
                 return match func {
                     "readFile" => {
-                        let path = vals.get(0).and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
+                        let path = vals.first().and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
                             .ok_or("readFile requires path string")?;
                         std::fs::read_to_string(path)
                             .map(Value::Str)
                             .map_err(|e| format!("readFile error: {}", e))
                     }
                     "writeFile" => {
-                        let path = vals.get(0).and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
+                        let path = vals.first().and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
                             .ok_or("writeFile requires path string")?;
                         let content = vals.get(1).and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
                             .ok_or("writeFile requires content string")?;
@@ -763,7 +755,7 @@ fn eval_expr(e: &Expr, env: &mut Env) -> Result<Value, String> {
             // Standard library : std.string.*
             if callee.starts_with("std.string.") {
                 let func = callee.strip_prefix("std.string.").unwrap();
-                let s = vals.get(0).and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
+                let s = vals.first().and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
                     .ok_or("string function requires string arg")?;
                 return match func {
                     "split" => {
@@ -785,14 +777,14 @@ fn eval_expr(e: &Expr, env: &mut Env) -> Result<Value, String> {
                            else { callee.strip_prefix("db.").unwrap().to_string() };
                 return match func.as_str() {
                     "open" => {
-                        let path = vals.get(0).and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
+                        let path = vals.first().and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
                             .ok_or("db.open requires a path string")?;
                         let conn = Connection::open(&path).map_err(|e| e.to_string())?;
                         DB.lock().unwrap().insert(path.clone(), conn);
                         Ok(Value::Str(path))
                     }
                     "query" => {
-                        let path = vals.get(0).and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
+                        let path = vals.first().and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
                             .ok_or("db.query requires path string")?;
                         let sql = vals.get(1).and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
                             .ok_or("db.query requires SQL string")?;
@@ -804,13 +796,13 @@ fn eval_expr(e: &Expr, env: &mut Env) -> Result<Value, String> {
                         let mut results: Vec<Value> = vec![];
                         let rows = stmt.query_map([], |row| {
                             let mut map = HashMap::new();
-                            for i in 0..col_count {
+                            for (i, col_name) in col_names.iter().enumerate() {
                                 match row.get::<_, rusqlite::types::Value>(i) {
-                                    Ok(rusqlite::types::Value::Null) => { map.insert(col_names[i].clone(), Value::Null); }
-                                    Ok(rusqlite::types::Value::Integer(n)) => { map.insert(col_names[i].clone(), Value::Num(n as f64)); }
-                                    Ok(rusqlite::types::Value::Real(f)) => { map.insert(col_names[i].clone(), Value::Num(f)); }
-                                    Ok(rusqlite::types::Value::Text(s)) => { map.insert(col_names[i].clone(), Value::Str(s)); }
-                                    _ => { map.insert(col_names[i].clone(), Value::Null); }
+                                    Ok(rusqlite::types::Value::Null) => { map.insert(col_name.clone(), Value::Null); }
+                                    Ok(rusqlite::types::Value::Integer(n)) => { map.insert(col_name.clone(), Value::Num(n as f64)); }
+                                    Ok(rusqlite::types::Value::Real(f)) => { map.insert(col_name.clone(), Value::Num(f)); }
+                                    Ok(rusqlite::types::Value::Text(s)) => { map.insert(col_name.clone(), Value::Str(s)); }
+                                    _ => { map.insert(col_name.clone(), Value::Null); }
                                 }
                             }
                             Ok(map)
@@ -821,7 +813,7 @@ fn eval_expr(e: &Expr, env: &mut Env) -> Result<Value, String> {
                         Ok(Value::Arr(results))
                     }
                     "execute" => {
-                        let path = vals.get(0).and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
+                        let path = vals.first().and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
                             .ok_or("db.execute requires path string")?;
                         let sql = vals.get(1).and_then(|v| if let Value::Str(s) = v { Some(s.clone()) } else { None })
                             .ok_or("db.execute requires SQL string")?;
@@ -912,8 +904,9 @@ fn eval_expr(e: &Expr, env: &mut Env) -> Result<Value, String> {
             match val {
                 Value::Task(cell) => {
                     let result = loop {
-                        let v = cell.lock().unwrap().take();
-                        if let Some(v) = v { break v; }
+                        if let Some(v) = cell.lock().unwrap().as_ref().cloned() {
+                            break v;
+                        }
                         std::thread::sleep(std::time::Duration::from_millis(1));
                     };
                     Ok(result)

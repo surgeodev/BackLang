@@ -63,7 +63,7 @@ impl Lexer {
             }
             if c == '/' && self.peek(1) == '*' {
                 self.advance(); self.advance();
-                while !self.at_end() && !(self.current() == '*' && self.peek(1) == '/') { self.advance(); }
+                while !(self.at_end() || self.current() == '*' && self.peek(1) == '/') { self.advance(); }
                 if !self.at_end() { self.advance(); self.advance(); }
                 continue;
             }

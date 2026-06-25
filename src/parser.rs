@@ -51,7 +51,6 @@ pub enum Stmt {
     Continue(usize),
     Export(Box<Stmt>, usize),
     Await(Expr, usize),
-    Spawn(Expr, usize),
     Task { name: String, body: Vec<Stmt>, line: usize },
 }
 
@@ -85,7 +84,7 @@ impl Parser {
     
     fn cur(&self) -> &Token {
         if self.pos < self.tokens.len() { &self.tokens[self.pos] }
-        else { &self.tokens.last().unwrap() }
+        else { self.tokens.last().unwrap() }
     }
     
     fn at(&self) -> bool { matches!(self.cur().tt, TokenType::Eof) }
@@ -133,8 +132,8 @@ impl Parser {
                 TokenType::Middleware => prog.middlewares.push(self.middleware(exported)),
                 TokenType::Semi => self.adv(),
                 _ => {
-                    if is_async { prog.body.push(Stmt::Await(self.expr(), 0)); }
-                    else if exported { prog.body.push(Stmt::Export(Box::new(self.stmt()), 0)); }
+                    if is_async { let l = self.cur().line; prog.body.push(Stmt::Await(self.expr(), l)); }
+                    else if exported { let l = self.cur().line; prog.body.push(Stmt::Export(Box::new(self.stmt()), l)); }
                     else { prog.body.push(self.stmt()); }
                 }
             }
@@ -254,8 +253,7 @@ impl Parser {
                 } else if self.check_val("cors") {
                     self.adv();
                     if self.check(TokenType::Colon) { self.adv(); }
-                    if self.check(TokenType::True) { cors = true; self.adv(); }
-                    else if self.check(TokenType::String) { cors = true; self.adv(); }
+                    if self.check(TokenType::True) || self.check(TokenType::String) { cors = true; self.adv(); }
                 }
                 if self.check(TokenType::Semi) {
                     self.adv();
@@ -326,7 +324,7 @@ impl Parser {
     fn for_(&mut self, line: usize) -> Stmt {
         self.adv();
         let var = if self.check(TokenType::Ident) { let v = self.cur().value.clone(); self.adv(); v } else { "i".into() };
-        self.adv();
+        if self.check(TokenType::In) { self.adv(); }
         let iter = self.expr();
         let body = self.block();
         Stmt::For { var, iter, body, line }
@@ -466,7 +464,7 @@ pub fn stmt_line(s: &Stmt) -> usize {
             | Stmt::While { line: l, .. } | Stmt::For { line: l, .. } | Stmt::Task { line: l, .. }
             | Stmt::Break(l) | Stmt::Continue(l) => *l,
         Stmt::Export(s, _) => stmt_line(s),
-        Stmt::Await(_, l) | Stmt::Spawn(_, l) => *l,
+        Stmt::Await(_, l) => *l,
     }
 }
 
