@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::io::Write;
 use std::path::Path;
 use std::process::Command;
 mod lexer;
@@ -53,6 +54,11 @@ fn main() {
         return;
     }
 
+    if args[1] == "publish" || args[1] == "--publish" {
+        cmd_publish_pkg(args.get(2).map(|s| s.as_str()));
+        return;
+    }
+
     if args[1] == "test" || args[1] == "--test" {
         cmd_test(args.get(2).map(|s| s.as_str()));
         return;
@@ -96,6 +102,7 @@ fn print_usage() {
     println!("       bl --install           (add to PATH on Windows)");
     println!("       bl --bench             (run benchmarks)");
     println!("       bl install <pkg>       (install a package)");
+    println!("       bl publish [--init]    (publish this package)");
     println!("       bl list                (list installed packages)");
     println!("       bl search <term>       (search packages)");
     println!("       bl test [path]         (run tests)");
@@ -300,6 +307,180 @@ fn cmd_install_pkg(name: &str) {
     eprintln!("Package '{}' not found.", name);
 }
 
+fn cmd_publish_pkg(opt: Option<&str>) {
+    let cwd = env::current_dir().unwrap();
+    let meta_path = cwd.join("backlang.json");
+
+    // --init: create template backlang.json
+    if opt == Some("--init") {
+        if meta_path.exists() {
+            eprintln!("backlang.json already exists.");
+            return;
+        }
+        println!("Creating backlang.json...");
+        print!("Package name [{}]: ", cwd.file_name().unwrap().to_str().unwrap());
+        std::io::stdout().flush().ok();
+        let mut name = String::new();
+        std::io::stdin().read_line(&mut name).ok();
+        let name = name.trim();
+        let name = if name.is_empty() {
+            cwd.file_name().unwrap().to_str().unwrap().to_string()
+        } else {
+            name.to_string()
+        };
+        print!("Version [1.0.0]: ");
+        std::io::stdout().flush().ok();
+        let mut version = String::new();
+        std::io::stdin().read_line(&mut version).ok();
+        let version = version.trim();
+        let version = if version.is_empty() { "1.0.0".into() } else { version.to_string() };
+        print!("Description: ");
+        std::io::stdout().flush().ok();
+        let mut desc = String::new();
+        std::io::stdin().read_line(&mut desc).ok();
+        let desc = desc.trim().to_string();
+
+        let meta = serde_json::json!({
+            "name": name,
+            "version": version,
+            "description": desc,
+            "entry": "index.bl",
+            "dependencies": {}
+        });
+        fs::write(&meta_path, serde_json::to_string_pretty(&meta).unwrap()).ok();
+        println!("Created backlang.json");
+        return;
+    }
+
+    // Validate backlang.json
+    if !meta_path.exists() {
+        eprintln!("No backlang.json found. Run 'bl publish --init' to create one.");
+        return;
+    }
+    let meta_str = match fs::read_to_string(&meta_path) {
+        Ok(s) => s,
+        Err(e) => { eprintln!("Error reading backlang.json: {}", e); return; }
+    };
+    let meta: serde_json::Value = match serde_json::from_str(&meta_str) {
+        Ok(v) => v,
+        Err(e) => { eprintln!("Invalid backlang.json: {}", e); return; }
+    };
+
+    let pkg_name = meta["name"].as_str().unwrap_or("");
+    let pkg_version = meta["version"].as_str().unwrap_or("1.0.0");
+    let pkg_entry = meta["entry"].as_str().unwrap_or("index.bl");
+
+    if pkg_name.is_empty() {
+        eprintln!("backlang.json: 'name' is required.");
+        return;
+    }
+
+    // Validate entry file
+    let entry_path = cwd.join(pkg_entry);
+    if !entry_path.exists() {
+        eprintln!("Entry file '{}' not found.", pkg_entry);
+        return;
+    }
+
+    println!("Publishing {} v{}...", pkg_name, pkg_version);
+
+    // Check git status
+    let status = Command::new("git")
+        .args(["status", "--porcelain"])
+        .current_dir(&cwd)
+        .output();
+    match status {
+        Ok(o) if !o.stdout.is_empty() => {
+            eprintln!("Uncommitted changes. Commit or stash them first.");
+            return;
+        }
+        Err(_) => {
+            // Not a git repo — check if user wants to init
+            eprintln!("Not a git repository. Run 'git init' first.");
+            return;
+        }
+        _ => {}
+    }
+
+    // Get remote URL
+    let remote = Command::new("git")
+        .args(["remote", "get-url", "origin"])
+        .current_dir(&cwd)
+        .output();
+    let remote_url = match remote {
+        Ok(o) if o.status.success() => {
+            String::from_utf8_lossy(&o.stdout).trim().to_string()
+        }
+        _ => {
+            eprintln!("No git remote 'origin' set. Set one with 'git remote add origin <url>'.");
+            return;
+        }
+    };
+
+    // Extract user/repo from remote URL
+    let repo_full = if remote_url.contains("github.com/") {
+        let part = remote_url.split("github.com/").nth(1).unwrap_or("");
+        part.trim_end_matches(".git").to_string()
+    } else {
+        eprintln!("Remote is not a GitHub repository. Only GitHub is supported.");
+        return;
+    };
+
+    // Create and push tag
+    let tag = format!("v{}", pkg_version);
+    println!("Creating git tag {}...", tag);
+    Command::new("git")
+        .args(["tag", "-f", &tag, "-m", &format!("{} v{}", pkg_name, pkg_version)])
+        .current_dir(&cwd)
+        .output().ok();
+    println!("Pushing tag to origin...");
+    let push = Command::new("git")
+        .args(["push", "origin", &tag])
+        .current_dir(&cwd)
+        .output();
+    match push {
+        Ok(o) if o.status.success() => {},
+        _ => {
+            eprintln!("Failed to push tag. Check your git remote permissions.");
+            return;
+        }
+    }
+
+    // Create GitHub release via gh CLI
+    let release_title = format!("{} v{}", pkg_name, pkg_version);
+    let gh_available = Command::new("gh").arg("--version").output().is_ok();
+
+    if gh_available {
+        println!("Creating GitHub release via gh CLI...");
+        let release = Command::new("gh")
+            .args([
+                "release", "create", &tag,
+                "--title", &release_title,
+                "--notes", &format!("Package: {}\n\nInstall: `bl install {}`", pkg_name, repo_full),
+                "--repo", &repo_full,
+            ])
+            .current_dir(&cwd)
+            .output();
+        match release {
+            Ok(o) if o.status.success() => {
+                println!("✓ Published {} v{} as release.", pkg_name, pkg_version);
+                println!("  Install with: bl install {}", repo_full);
+                return;
+            }
+            _ => {
+                eprintln!("gh release failed. Tag was pushed but release was not created.");
+                eprintln!("  Manual: gh release create {} --title \"{}\" --repo {}", tag, release_title, repo_full);
+            }
+        }
+    } else {
+        println!("Tag pushed to GitHub.");
+        println!("  Create a release manually at:");
+        println!("  https://github.com/{}/releases/new?tag={}", repo_full, tag);
+    }
+
+    println!("  Install with: bl install {}", repo_full);
+}
+
 fn cmd_list_pkgs() {
     let home = dirs::home_dir().unwrap_or_else(|| Path::new(".").to_path_buf());
     let pkg_dir = home.join(".backlang").join("packages");
@@ -359,8 +540,6 @@ fn cmd_search_pkgs(term: &str) {
 }
 
 fn cmd_test(path: Option<&str>) {
-    use std::path::Path;
-    
     let test_dir = path.map(|p| p.to_string()).unwrap_or_else(|| "tests".to_string());
     let test_path = Path::new(&test_dir);
     
