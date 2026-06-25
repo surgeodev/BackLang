@@ -704,7 +704,7 @@ fn cmd_snake() {
 
     let inp_inputs = inputs.clone();
     let inp_running = running.clone();
-    let inp_handle = std::thread::spawn(move || {
+    std::thread::spawn(move || {
         let mut buf = [0u8; 1];
         while inp_running.load(Ordering::Relaxed) {
             if std::io::stdin().read(&mut buf).is_ok() {
@@ -713,21 +713,39 @@ fn cmd_snake() {
         }
     });
 
-    loop {
-        // drain input queue
-        let key = inputs.lock().unwrap().pop_front();
-        if let Some(k) = key {
+    'game: loop {
+        // Drain ALL queued input before tick
+        loop {
+            let k = inputs.lock().unwrap().pop_front();
             match k {
-                b'q' => break,
-                b'w' | b'A' if dir != Down => { next_dir = Up; }
-                b's' | b'B' if dir != Up => { next_dir = Down; }
-                b'a' | b'D' if dir != Right => { next_dir = Left; }
-                b'd' | b'C' if dir != Left => { next_dir = Right; }
+                None => break,
+                Some(b'q') => { running.store(false, Ordering::Relaxed); break 'game; }
+                Some(b'w') if dir != Down => next_dir = Up,
+                Some(b's') if dir != Up => next_dir = Down,
+                Some(b'a') if dir != Right => next_dir = Left,
+                Some(b'd') if dir != Left => next_dir = Right,
+                // Arrow keys: consume \x1b [ letter
+                Some(0x1b) => {
+                    // Skip '[' byte
+                    inputs.lock().unwrap().pop_front();
+                    if let Some(dir_byte) = inputs.lock().unwrap().pop_front() {
+                        match dir_byte {
+                            b'A' if dir != Down => next_dir = Up,
+                            b'B' if dir != Up => next_dir = Down,
+                            b'C' if dir != Left => next_dir = Right,
+                            b'D' if dir != Right => next_dir = Left,
+                            _ => {}
+                        }
+                    }
+                }
                 _ => {}
             }
         }
 
-        if tick.elapsed().as_millis() < 150 { continue; }
+        if tick.elapsed().as_millis() < 150 {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+            continue;
+        }
         tick = std::time::Instant::now();
         dir = next_dir;
 
@@ -739,10 +757,8 @@ fn cmd_snake() {
             Right => (head.0.wrapping_add(1), head.1),
         };
 
-        // wall collision
-        if new_head.0 >= W || new_head.1 >= H { score = 0; break; }
-        // self collision
-        if snake.contains(&new_head) { score = 0; break; }
+        // wall or self collision
+        if new_head.0 >= W || new_head.1 >= H || snake.contains(&new_head) { running.store(false, Ordering::Relaxed); break; }
 
         snake.push_front(new_head);
         if new_head == food {
@@ -764,7 +780,7 @@ fn cmd_snake() {
         for y in 0..H {
             out.push('│');
             for x in 0..W {
-                if (x, y) == new_head { out.push('●'); }
+                if (x, y) == *snake.front().unwrap() { out.push('●'); }
                 else if (x, y) == food { out.push('★'); }
                 else if snake.contains(&(x, y)) { out.push('○'); }
                 else { out.push(' '); }
@@ -781,9 +797,8 @@ fn cmd_snake() {
     }
 
     running.store(false, Ordering::Relaxed);
-    let _ = inp_handle.join();
     restore();
-    println!("Snake! Score: {}", score);
+    println!("\nSnake! Score: {}", score);
 }
 
 fn cmd_install() {
