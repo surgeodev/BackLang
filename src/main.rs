@@ -99,7 +99,7 @@ fn print_usage() {
     println!("       bl --debug <file.bl>  (debug mode)");
     println!("       bl --version           (show version)");
     println!("       bl --update            (update to latest release)");
-    println!("       bl --install           (add to PATH on Windows)");
+    println!("       bl --install           (install bl to system PATH)");
     println!("       bl --bench             (run benchmarks)");
     println!("       bl install <pkg>       (install a package)");
     println!("       bl publish [--init]    (publish this package)");
@@ -630,12 +630,13 @@ fn cmd_watch(file: &str) {
 }
 
 fn cmd_install() {
+    let exe = match env::current_exe() {
+        Ok(p) => p,
+        Err(_) => { eprintln!("Cannot determine executable path"); return; }
+    };
+
     #[cfg(windows)]
     {
-        let exe = match env::current_exe() {
-            Ok(p) => p,
-            Err(_) => { eprintln!("Cannot determine executable path"); return; }
-        };
         let dir = exe.parent().unwrap().to_str().unwrap();
         let ps = format!(
             "$path = [Environment]::GetEnvironmentVariable('Path', 'User'); \
@@ -659,10 +660,80 @@ fn cmd_install() {
             _ => { eprintln!("Failed to add to PATH. Try running as Administrator."); }
         }
     }
-    
+
     #[cfg(not(windows))]
     {
-        println!("On Linux/macOS, bl is installed to /usr/local/bin which is already in PATH.");
-        println!("If not, run: export PATH=\"$PATH:$(dirname $(which bl))\"");
+        let os = if cfg!(target_os = "macos") { "macOS" } else { "Linux" };
+        println!("Installing bl for {}...", os);
+
+        // Try /usr/local/bin (needs sudo)
+        let target = Path::new("/usr/local/bin").join("bl");
+        let has_sudo = Command::new("sudo").arg("-n").arg("true").output().is_ok();
+
+        let installed = if has_sudo {
+            let status = Command::new("sudo")
+                .args(["cp", exe.to_str().unwrap(), target.to_str().unwrap()])
+                .status();
+            if let Ok(s) = status {
+                if s.success() {
+                    println!("✓ Installed to /usr/local/bin/bl");
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+
+        if !installed {
+            // Fallback: ~/.local/bin
+            let home = dirs::home_dir().unwrap();
+            let local_bin = home.join(".local").join("bin");
+            fs::create_dir_all(&local_bin).ok();
+            let local_target = local_bin.join("bl");
+            if fs::copy(&exe, &local_target).is_ok() {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    fs::set_permissions(&local_target, fs::Permissions::from_mode(0o755)).ok();
+                }
+                println!("✓ Installed to {}", local_target.display());
+
+                // Add to PATH in shell config
+                let rc_files = [
+                    home.join(".zshrc"),
+                    home.join(".bashrc"),
+                    home.join(".bash_profile"),
+                    home.join(".profile"),
+                ];
+                let path_line = format!("\nexport PATH=\"$HOME/.local/bin:$PATH\"\n");
+                let mut added = false;
+                for rc in &rc_files {
+                    if rc.exists() {
+                        let content = fs::read_to_string(rc).unwrap_or_default();
+                        if !content.contains(".local/bin") {
+                            fs::write(rc, content + &path_line).ok();
+                            println!("  Added ~/.local/bin to PATH in {}", rc.display());
+                            added = true;
+                        }
+                    }
+                }
+                if !added {
+                    // Create .zshrc if nothing exists
+                    let zshrc = home.join(".zshrc");
+                    if !zshrc.exists() {
+                        fs::write(&zshrc, &path_line).ok();
+                        println!("  Created {} with ~/.local/bin in PATH", zshrc.display());
+                    }
+                }
+                println!("  Restart your terminal or run: export PATH=\"$HOME/.local/bin:$PATH\"");
+            } else {
+                eprintln!("Failed to install. Try: sudo cp {} /usr/local/bin/bl", exe.display());
+                return;
+            }
+        }
     }
 }
