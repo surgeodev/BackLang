@@ -771,18 +771,18 @@ fn cmd_snake() {
             snake.pop_back();
         }
 
-        // render
+        // render - clear screen first so box starts at top
         let mut out = String::new();
-        out.push_str("\x1b[H");
+        out.push_str("\x1b[2J\x1b[H");
         out.push('┌');
         for _ in 0..W { out.push('─'); }
         out.push_str("┐\r\n");
         for y in 0..H {
             out.push('│');
             for x in 0..W {
-                if (x, y) == *snake.front().unwrap() { out.push('●'); }
-                else if (x, y) == food { out.push('★'); }
-                else if snake.contains(&(x, y)) { out.push('○'); }
+                if (x, y) == *snake.front().unwrap() { out.push('█'); }
+                else                 if (x, y) == food { out.push('▒'); }
+                else if snake.contains(&(x, y)) { out.push('▓'); }
                 else { out.push(' '); }
             }
             out.push('│');
