@@ -751,13 +751,17 @@ fn cmd_snake() {
 }
 
 fn cmd_install() {
-    let exe = match env::current_exe() {
-        Ok(p) => p,
-        Err(_) => { eprintln!("Cannot determine executable path"); return; }
-    };
+    let home = dirs::home_dir().unwrap();
+    let local_bin = home.join(".local").join("bin");
+    let local_target = local_bin.join("bl");
+    let pkg_dir = home.join(".backlang").join("packages");
 
     #[cfg(windows)]
     {
+        let exe = match env::current_exe() {
+            Ok(p) => p,
+            Err(_) => { eprintln!("Cannot determine executable path"); return; }
+        };
         let dir = exe.parent().unwrap().to_str().unwrap();
         let ps = format!(
             "$path = [Environment]::GetEnvironmentVariable('Path', 'User'); \
@@ -785,75 +789,124 @@ fn cmd_install() {
     #[cfg(not(windows))]
     {
         let os = if cfg!(target_os = "macos") { "macOS" } else { "Linux" };
-        println!("Installing bl for {}...", os);
+        println!("🚀 Installing BackLang for {}...", os);
 
-        // Try /usr/local/bin (needs sudo)
-        let target = Path::new("/usr/local/bin").join("bl");
-        let has_sudo = Command::new("sudo").arg("-n").arg("true").output().is_ok();
-
-        let installed = if has_sudo {
-            let status = Command::new("sudo")
-                .args(["cp", exe.to_str().unwrap(), target.to_str().unwrap()])
-                .status();
-            if let Ok(s) = status {
-                if s.success() {
-                    println!("✓ Installed to /usr/local/bin/bl");
-                    true
-                } else {
-                    false
-                }
-            } else {
-                false
-            }
+        // 1. Download latest release
+        let tmp = env::temp_dir().join("bl_latest");
+        let (target_name, ext) = if cfg!(target_os = "linux") {
+            ("x86_64-unknown-linux-gnu", "")
+        } else if cfg!(target_os = "macos") {
+            if cfg!(target_arch = "aarch64") { ("aarch64-apple-darwin", "") }
+            else { ("x86_64-apple-darwin", "") }
         } else {
-            false
+            ("x86_64-unknown-linux-gnu", "")
         };
 
-        if !installed {
-            // Fallback: ~/.local/bin
-            let home = dirs::home_dir().unwrap();
-            let local_bin = home.join(".local").join("bin");
-            fs::create_dir_all(&local_bin).ok();
-            let local_target = local_bin.join("bl");
-            if fs::copy(&exe, &local_target).is_ok() {
+        let url = format!(
+            "https://github.com/surgeodev/BackLang/releases/latest/download/backlang-{}{}",
+            target_name, ext
+        );
+
+        print!("  Downloading latest release...");
+        let _ = std::io::stdout().flush();
+        let status = Command::new("curl")
+            .args(["-fsSL", "-o", tmp.to_str().unwrap(), &url])
+            .status();
+
+        match status {
+            Ok(s) if s.success() => {
+                println!(" OK");
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
-                    fs::set_permissions(&local_target, fs::Permissions::from_mode(0o755)).ok();
+                    fs::set_permissions(&tmp, fs::Permissions::from_mode(0o755)).ok();
                 }
-                println!("✓ Installed to {}", local_target.display());
-
-                // Add to PATH in shell config
-                let rc_files = [
-                    home.join(".zshrc"),
-                    home.join(".bashrc"),
-                    home.join(".bash_profile"),
-                    home.join(".profile"),
-                ];
-                let path_line = "\nexport PATH=\"$HOME/.local/bin:$PATH\"\n".to_string();
-                let mut added = false;
-                for rc in &rc_files {
-                    if rc.exists() {
-                        let content = fs::read_to_string(rc).unwrap_or_default();
-                        if !content.contains(".local/bin") {
-                            fs::write(rc, content + &path_line).ok();
-                            println!("  Added ~/.local/bin to PATH in {}", rc.display());
-                            added = true;
-                        }
-                    }
-                }
-                if !added {
-                    // Create .zshrc if nothing exists
-                    let zshrc = home.join(".zshrc");
-                    if !zshrc.exists() {
-                        fs::write(&zshrc, &path_line).ok();
-                        println!("  Created {} with ~/.local/bin in PATH", zshrc.display());
-                    }
-                }
-                println!("  Restart your terminal or run: export PATH=\"$HOME/.local/bin:$PATH\"");
-            } else {
-                eprintln!("Failed to install. Try: sudo cp {} /usr/local/bin/bl", exe.display());
+            }
+            _ => {
+                // Fallback: use current binary
+                println!(" (using local build)");
+                let exe = env::current_exe().unwrap_or_else(|_| Path::new("bl").to_path_buf());
+                fs::copy(&exe, &tmp).ok();
             }
         }
+
+        // 2. Install to ~/.local/bin
+        fs::create_dir_all(&local_bin).ok();
+        if fs::copy(&tmp, &local_target).is_ok() {
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                fs::set_permissions(&local_target, fs::Permissions::from_mode(0o755)).ok();
+            }
+            println!("  ✓ Installed to {}", local_target.display());
+        } else {
+            eprintln!("  ✗ Failed to install to {}", local_target.display());
+            return;
+        }
+        let _ = fs::remove_file(&tmp);
+
+        // 3. Remove stale /usr/local/bin/bl
+        let sys_bl = Path::new("/usr/local/bin/bl");
+        if sys_bl.exists() {
+            let rm_ok = Command::new("sudo")
+                .args(["rm", "-f", "/usr/local/bin/bl"])
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .status()
+                .map(|s| s.success())
+                .unwrap_or(false);
+            if rm_ok {
+                println!("  ✓ Removed stale /usr/local/bin/bl");
+            } else {
+                println!("  ⚠ Stale /usr/local/bin/bl found (run: sudo rm /usr/local/bin/bl)");
+            }
+        }
+
+        // 4. Create package directory
+        fs::create_dir_all(&pkg_dir).ok();
+
+        // 5. Add ~/.local/bin to FRONT of PATH in shell config
+        let rc_files = [
+            home.join(".zshrc"),
+            home.join(".bashrc"),
+            home.join(".bash_profile"),
+            home.join(".profile"),
+        ];
+        let path_line = "export PATH=\"$HOME/.local/bin:$PATH\"\n";
+        let mut path_ok = false;
+
+        for rc in &rc_files {
+            if rc.exists() {
+                let content = fs::read_to_string(rc).unwrap_or_default();
+                if content.contains(".local/bin") {
+                    // Already present — ensure it's at the front
+                    let cleaned: String = content.lines()
+                        .filter(|l| !l.contains(".local/bin"))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    let updated = path_line.to_string() + &cleaned + "\n";
+                    fs::write(rc, updated).ok();
+                    println!("  ✓ Moved ~/.local/bin to front of PATH in {}", rc.display());
+                } else {
+                    let updated = path_line.to_string() + &content;
+                    fs::write(rc, updated).ok();
+                    println!("  ✓ Added ~/.local/bin to front of PATH in {}", rc.display());
+                }
+                path_ok = true;
+                break;
+            }
+        }
+
+        if !path_ok {
+            let zshrc = home.join(".zshrc");
+            fs::write(&zshrc, path_line).ok();
+            println!("  ✓ Created {} with ~/.local/bin in PATH", zshrc.display());
+        }
+
+        // 6. Apply to current session
+        println!();
+        println!("  ✅ BackLang ready!");
+        println!("  Run: source ~/.zshrc  (or open a new terminal)");
+        println!("  Then: bl --snake  (easter egg!)");
     }
 }
