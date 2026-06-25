@@ -166,53 +166,89 @@ fn cmd_update() {
         target, ext
     );
     
+    print!("  Downloading {}...", latest_tag);
+    let _ = std::io::stdout().flush();
     let status = Command::new("curl")
         .args(["-fsSLo", tmp.to_str().unwrap(), &url])
         .status();
     
     match status {
-        Ok(s) if s.success() => {},
-        _ => { eprintln!("Download failed"); return; }
+        Ok(s) if s.success() => { println!(" OK"); }
+        _ => { eprintln!("\nDownload failed"); return; }
     }
     
-    let current_exe = match env::current_exe() {
-        Ok(p) => p,
-        Err(_) => { eprintln!("Cannot determine executable path"); return; }
-    };
+    // Install to ~/.local/bin/bl (always — works without sudo)
+    let home = dirs::home_dir().unwrap();
+    let local_bin = home.join(".local").join("bin");
+    let local_target = local_bin.join("bl");
+    fs::create_dir_all(&local_bin).ok();
     
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
         fs::set_permissions(&tmp, fs::Permissions::from_mode(0o755)).ok();
-        if fs::rename(&tmp, &current_exe).is_ok() {
-            println!("Updated to {}!", latest_tag);
-            return;
-        }
-        // Fallback: try with sudo cp
-        let status = Command::new("sudo")
-            .args(["cp", tmp.to_str().unwrap(), current_exe.to_str().unwrap()])
-            .status();
-        if let Ok(s) = status { if s.success() {
-            fs::remove_file(&tmp).ok();
-            println!("Updated to {}!", latest_tag);
-            return;
-        }}
-        eprintln!("Update failed: permission denied. Try: sudo bl --update");
     }
     
-    #[cfg(windows)]
-    {
-        let bat = env::temp_dir().join("bl_update.bat");
-        let script = format!(
-            "@echo off\ntimeout /t 2 /nobreak >nul\ncopy /y \"{}\" \"{}\" >nul\ndel \"{}\"\n",
-            tmp.to_str().unwrap(),
-            current_exe.to_str().unwrap(),
-            tmp.to_str().unwrap()
-        );
-        fs::write(&bat, script).ok();
-        Command::new("cmd").args(["/c", "start", "/b", bat.to_str().unwrap()]).spawn().ok();
-        println!("Updated to {}! Restart your terminal.", latest_tag);
+    if fs::copy(&tmp, &local_target).is_ok() {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&local_target, fs::Permissions::from_mode(0o755)).ok();
+        }
+        println!("  ✓ Installed to {}", local_target.display());
+    } else {
+        eprintln!("  ✗ Failed to install to {}", local_target.display());
+        return;
     }
+    fs::remove_file(&tmp).ok();
+
+    // Remove stale /usr/local/bin/bl if present
+    let sys_bl = Path::new("/usr/local/bin/bl");
+    if sys_bl.exists() {
+        let rm_ok = Command::new("sudo")
+            .args(["rm", "-f", "/usr/local/bin/bl"])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .map(|s| s.success())
+            .unwrap_or(false);
+        if rm_ok {
+            println!("  ✓ Removed stale /usr/local/bin/bl");
+        } else {
+            println!("  ⚠ Stale /usr/local/bin/bl still present (run: sudo rm /usr/local/bin/bl)");
+        }
+    }
+
+    // Ensure PATH is set up
+    let rc_files = [
+        home.join(".zshrc"),
+        home.join(".bashrc"),
+        home.join(".bash_profile"),
+        home.join(".profile"),
+    ];
+    let path_line = "export PATH=\"$HOME/.local/bin:$PATH\"\n";
+    let mut path_ok = false;
+    for rc in &rc_files {
+        if rc.exists() {
+            let content = fs::read_to_string(rc).unwrap_or_default();
+            if !content.contains(".local/bin") {
+                let updated = path_line.to_string() + &content;
+                fs::write(rc, updated).ok();
+                println!("  ✓ Added ~/.local/bin to PATH in {}", rc.display());
+            }
+            path_ok = true;
+            break;
+        }
+    }
+    if !path_ok {
+        let zshrc = home.join(".zshrc");
+        fs::write(&zshrc, path_line).ok();
+        println!("  ✓ Created {} with PATH", zshrc.display());
+    }
+    
+    println!();
+    println!("  ✅ Updated to {}!", latest_tag);
+    println!("  Run: source ~/.zshrc  (or restart terminal)");
 }
 
 fn cmd_bench() {
