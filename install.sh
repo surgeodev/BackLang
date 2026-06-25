@@ -1,66 +1,51 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO="surgeodev/BackLang"
+BIN="$HOME/.local/bin/bl"
+
+detect_arch() {
+    local os arch
+    os="$(uname -s)"
+    arch="$(uname -m)"
+    case "$os" in
+        Linux)  os="unknown-linux-gnu" ;;
+        Darwin) os="apple-darwin" ;;
+        *)      echo "Unsupported OS: $os"; exit 1 ;;
+    esac
+    case "$arch" in
+        x86_64|amd64) arch="x86_64" ;;
+        aarch64|arm64) arch="aarch64" ;;
+        *) echo "Unsupported arch: $arch"; exit 1 ;;
+    esac
+    echo "${arch}-${os}"
+}
+
 echo "=== BackLang Installer ==="
 
-# System deps
-if [[ "$OSTYPE" == "darwin"* ]]; then
-    if ! command -v xcode-select &>/dev/null; then
-        echo "→ Installing Xcode CLI tools..."
-        xcode-select --install
+TARGET=$(detect_arch)
+URL="https://github.com/$REPO/releases/latest/download/backlang-${TARGET}"
+if [ "$TARGET" = "x86_64-apple-darwin" ] || [ "$TARGET" = "aarch64-apple-darwin" ]; then
+    : # no .exe
+fi
+
+echo "→ Downloading BackLang for ${TARGET}..."
+mkdir -p "$HOME/.local/bin"
+curl -fsSL "$URL" -o "$BIN"
+chmod +x "$BIN"
+
+# Add to PATH if not already present
+if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
+    RC="${HOME}/.zshrc"
+    if [ ! -f "$RC" ] && [ -f "$HOME/.bashrc" ]; then
+        RC="$HOME/.bashrc"
     fi
-elif command -v apt &>/dev/null; then
-    sudo apt update && sudo apt install -y build-essential curl
-elif command -v pacman &>/dev/null; then
-    sudo pacman -S --needed base-devel curl
-elif command -v dnf &>/dev/null; then
-    sudo dnf install -y gcc curl
-fi
-
-# pkg-config only on non-Windows (bundled-sqlite doesn't require it)
-if ! command -v pkg-config &>/dev/null; then
-    if command -v apt &>/dev/null; then
-        sudo apt install -y pkg-config
-    elif command -v pacman &>/dev/null; then
-        sudo pacman -S --needed pkg-config
-    elif command -v dnf &>/dev/null; then
-        sudo dnf install -y pkgconfig
-    fi
-fi
-
-# Rust
-if ! command -v cargo &>/dev/null; then
-    echo "→ Installing Rust..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    source "$HOME/.cargo/env"
-fi
-
-# Source: local dir or clone from GitHub
-SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd || echo "")"
-if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/Cargo.toml" ]; then
-    SRC="$SCRIPT_DIR"
-else
-    SRC="$HOME/backlang"
-    echo "→ Downloading BackLang from GitHub..."
-    git clone --depth 1 https://github.com/surgeodev/BackLang "$SRC"
-fi
-
-cd "$SRC"
-
-echo "→ Building BackLang..."
-cargo build --release
-
-echo "→ Installing binary..."
-sudo cp target/release/bl /usr/local/bin/bl
-
-VSIX="vscode-extension/backlang-debug-1.0.0.vsix"
-if command -v code &>/dev/null && [ -f "$VSIX" ]; then
-    echo "→ Installing VS Code extension..."
-    code --install-extension "$VSIX" --force
+    echo "" >> "$RC"
+    echo "export PATH=\"\$HOME/.local/bin:\$PATH\"" >> "$RC"
+    echo "→ Added ~/.local/bin to PATH in $RC"
 fi
 
 echo ""
-echo "✓ Done!"
-echo "  bl --check file.bl"
-echo "  bl file.bl"
-echo "  bl --debug file.bl"
+echo "✓ BackLang installed!"
+echo "  Run: source ~/.zshrc  (or open a new terminal)"
+echo "  Then: bl --snake"
