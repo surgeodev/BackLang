@@ -1,6 +1,7 @@
+use std::collections::VecDeque;
 use std::env;
 use std::fs;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
 use std::process::Command;
 mod lexer;
@@ -59,6 +60,11 @@ fn main() {
         return;
     }
 
+    if args[1] == "--snake" || args[1] == "snake" {
+        cmd_snake();
+        return;
+    }
+
     if args[1] == "test" || args[1] == "--test" {
         cmd_test(args.get(2).map(|s| s.as_str()));
         return;
@@ -107,6 +113,7 @@ fn print_usage() {
     println!("       bl search <term>       (search packages)");
     println!("       bl test [path]         (run tests)");
     println!("       bl watch <file.bl>     (hot reload)");
+    println!("       bl --snake             (play snake!)");
 }
 
 fn cmd_update() {
@@ -628,6 +635,119 @@ fn cmd_watch(file: &str) {
             }
         }
     }
+}
+
+fn cmd_snake() {
+    const W: usize = 20;
+    const H: usize = 10;
+    #[derive(Clone, Copy, PartialEq)]
+    enum Dir { Up, Down, Left, Right }
+    use Dir::*;
+
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::{Arc, Mutex};
+
+    let restore = || {
+        let _ = Command::new("stty").args(["cooked", "echo"]).status();
+        print!("\x1b[?25h\x1b[2J\x1b[H");
+        let _ = std::io::stdout().flush();
+    };
+
+    let _ = Command::new("stty").args(["raw", "-echo"]).status();
+    print!("\x1b[?25l");
+    let _ = std::io::stdout().flush();
+
+    let mut snake: VecDeque<(usize, usize)> = VecDeque::from([(W/2, H/2)]);
+    let mut food = (W/4, H/4);
+    let mut dir = Right;
+    let mut next_dir = Right;
+    let mut score = 0;
+    let mut tick = std::time::Instant::now();
+    let inputs = Arc::new(Mutex::new(VecDeque::new()));
+    let running = Arc::new(AtomicBool::new(true));
+
+    let inp_inputs = inputs.clone();
+    let inp_running = running.clone();
+    let inp_handle = std::thread::spawn(move || {
+        let mut buf = [0u8; 1];
+        while inp_running.load(Ordering::Relaxed) {
+            if std::io::stdin().read(&mut buf).is_ok() {
+                inp_inputs.lock().unwrap().push_back(buf[0]);
+            }
+        }
+    });
+
+    loop {
+        // drain input queue
+        let key = inputs.lock().unwrap().pop_front();
+        if let Some(k) = key {
+            match k {
+                b'q' => break,
+                b'w' | b'A' if dir != Down => { next_dir = Up; }
+                b's' | b'B' if dir != Up => { next_dir = Down; }
+                b'a' | b'D' if dir != Right => { next_dir = Left; }
+                b'd' | b'C' if dir != Left => { next_dir = Right; }
+                _ => {}
+            }
+        }
+
+        if tick.elapsed().as_millis() < 150 { continue; }
+        tick = std::time::Instant::now();
+        dir = next_dir;
+
+        let head = snake.front().unwrap();
+        let new_head = match dir {
+            Up => (head.0, head.1.wrapping_sub(1)),
+            Down => (head.0, head.1.wrapping_add(1)),
+            Left => (head.0.wrapping_sub(1), head.1),
+            Right => (head.0.wrapping_add(1), head.1),
+        };
+
+        // wall collision
+        if new_head.0 >= W || new_head.1 >= H { score = 0; break; }
+        // self collision
+        if snake.contains(&new_head) { score = 0; break; }
+
+        snake.push_front(new_head);
+        if new_head == food {
+            score += 1;
+            loop {
+                food = (rand::random::<usize>() % W, rand::random::<usize>() % H);
+                if !snake.contains(&food) { break; }
+            }
+        } else {
+            snake.pop_back();
+        }
+
+        // render
+        let mut out = String::new();
+        out.push_str("\x1b[H");
+        out.push('┌');
+        for _ in 0..W { out.push('─'); }
+        out.push_str("┐\r\n");
+        for y in 0..H {
+            out.push('│');
+            for x in 0..W {
+                if (x, y) == new_head { out.push('●'); }
+                else if (x, y) == food { out.push('★'); }
+                else if snake.contains(&(x, y)) { out.push('○'); }
+                else { out.push(' '); }
+            }
+            out.push('│');
+            out.push_str("\r\n");
+        }
+        out.push('└');
+        for _ in 0..W { out.push('─'); }
+        out.push('┘');
+        out.push_str(&format!("\r\nScore: {}", score));
+        print!("{}", out);
+        let _ = std::io::stdout().flush();
+    }
+
+    running.store(false, Ordering::Relaxed);
+    let _ = inp_handle.join();
+    restore();
+    println!("Snake! Score: {}", score);
 }
 
 fn cmd_install() {
