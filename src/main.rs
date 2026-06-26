@@ -371,12 +371,12 @@ fn cmd_publish_pkg(opt: Option<&str>) {
         } else {
             name.to_string()
         };
-        print!("Version [1.0.0]: ");
+        print!("Version [1.1.0]: ");
         std::io::stdout().flush().ok();
         let mut version = String::new();
         std::io::stdin().read_line(&mut version).ok();
         let version = version.trim();
-        let version = if version.is_empty() { "1.0.0".into() } else { version.to_string() };
+        let version = if version.is_empty() { "1.1.0".into() } else { version.to_string() };
         print!("Description: ");
         std::io::stdout().flush().ok();
         let mut desc = String::new();
@@ -410,7 +410,7 @@ fn cmd_publish_pkg(opt: Option<&str>) {
     };
 
     let pkg_name = meta["name"].as_str().unwrap_or("");
-    let pkg_version = meta["version"].as_str().unwrap_or("1.0.0");
+    let pkg_version = meta["version"].as_str().unwrap_or("1.1.0");
     let pkg_entry = meta["entry"].as_str().unwrap_or("index.bl");
 
     if pkg_name.is_empty() {

@@ -195,7 +195,7 @@ pub async fn start_server(host: &str, port: u16, program: Program, env: Env) -> 
         .layer(TraceLayer::new_for_http());
 
     let addr = format!("{}:{}", host, port).parse::<std::net::SocketAddr>()?;
-    println!("BackLang v1.0.0 - Axum Server on http://{}", addr);
+    println!("BackLang v{} - Axum Server on http://{}", env!("CARGO_PKG_VERSION"), addr);
     
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, router).await?;

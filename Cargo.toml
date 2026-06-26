@@ -1,6 +1,6 @@
 [package]
 name = "backlang"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 description = "BackLang - Simple backend language with its own runtime"
 authors = ["BackLang Team"]

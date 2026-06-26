@@ -212,7 +212,7 @@ pub fn execute(source: &str, filename: &str) -> Result<(), String> {
         let port = prog.servers.first().map(|s| s.port).unwrap_or(3000) as u16;
         let host = prog.servers.first().map(|s| s.host.clone()).unwrap_or_else(|| "0.0.0.0".into());
         
-        println!("BackLang v1.0.0 - Server '{}' on {}:{}", 
+        println!("BackLang v{} - Server '{}' on {}:{}", env!("CARGO_PKG_VERSION"), 
             prog.servers.first().map(|s| s.name.as_str()).unwrap_or("app"), 
             host, port);
         
